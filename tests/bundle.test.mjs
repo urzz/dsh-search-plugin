@@ -5,11 +5,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
-import { bundlePatchPaths, composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
+import { bundlePatchPaths, composeEntries, loadOverlayPatches, readPluginMeta } from '@deepseek-ai/dsh-app-boot'
 
 const require = createRequire(import.meta.url)
 const packageURL = new URL('../', import.meta.url)
 const basePatchURL = new URL('./fixtures/bundle-base.patch.yml', import.meta.url)
+
+test('official metadata resolver reads exported titles and descriptions without executing the plugin', () => {
+  const meta = readPluginMeta('dsh-search-plugin', import.meta.url)
+  assert.equal(meta.title.zh, '联网搜索与网页抓取')
+  assert.equal(meta.title.en, 'Web search and fetch')
+  assert.match(meta.description.zh, /Responses API/)
+  assert.match(meta.description.en, /OpenAI API key/)
+})
 
 function assertEvaluated(value) {
   if (value === null || typeof value !== 'object') return

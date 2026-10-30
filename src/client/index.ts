@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import { SearchConfig } from './SearchConfig.js'
@@ -22,7 +23,11 @@ export interface CredentialSnapshot {
 }
 
 export interface SearchFace {
-  hooks: { credential: HostObservable<CredentialSnapshot> }
+  hooks: {
+    credential: HostObservable<CredentialSnapshot>
+    config: HostObservable<ConfigFormSnapshot<Record<string, unknown>>>
+  }
+  mutateConfig: ConfigForm<Record<string, unknown>>['mutate']
   describeCredential: (ref: string) => void
   storeCredential: (ref: string, value: string) => Promise<void>
   removeCredential: (ref: string) => Promise<void>
@@ -70,7 +75,11 @@ export function apply(ctx: Context): void {
   }))
   ctx.effect(() => () => { disposed = true; sequence++; listeners.clear() })
   const face: SearchFace = {
-    hooks: { credential: { getSnapshot: () => state, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } } } },
+    hooks: {
+      credential: { getSnapshot: () => state, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } } },
+      config: { getSnapshot: () => form.getSnapshot(), subscribe: listener => form.subscribe(listener) },
+    },
+    mutateConfig: (ops, expectedRevision) => form.mutate(ops, expectedRevision),
     describeCredential,
     storeCredential: async (ref, value) => {
       const result = await ctx.remote.credentials.set(ref, value)

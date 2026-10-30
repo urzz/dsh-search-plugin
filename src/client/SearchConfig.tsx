@@ -17,7 +17,8 @@ function valuesOf(value: Record<string, unknown>): Values {
 
 /** Render the owner-supplied form with a revision-fenced, local draft. */
 export function SearchConfig(props: Props) {
-  const { t, form } = props
+  const { t } = props
+  const state = props.useConfig(snapshot => snapshot)
   const credential = props.useCredential(snapshot => snapshot)
   const [draft, setDraft] = useState<{ values: Values; revision: number | undefined } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -26,18 +27,18 @@ export function SearchConfig(props: Props) {
   const [keyBusy, setKeyBusy] = useState(false)
   const [keyMessage, setKeyMessage] = useState<LocaleKey | null>(null)
   if (props.view === 'summary') return t('description')
-  if (!form || form.state.status !== 'ready' || !form.state.value) return <p role="status">{t(form?.state.status === 'loading' ? 'loading' : 'unavailable')}</p>
-  const accepted = valuesOf(form.state.value)
+  if (state.status !== 'ready' || !state.value) return <p role="status">{t(state.status === 'loading' ? 'loading' : 'unavailable')}</p>
+  const accepted = valuesOf(state.value)
   const values = draft?.values ?? accepted
   const keyText = key?.ref === values.credentialRef ? key.text : ''
-  const conflict = draft !== null && draft.revision !== form.state.revision
-  const disabled = !form.state.writable || busy
+  const conflict = draft !== null && draft.revision !== state.revision
+  const disabled = !state.writable || busy
   const validRef = /^[A-Za-z_][A-Za-z0-9_]*$/.test(values.credentialRef)
   const credentialCurrent = credential.ref === values.credentialRef
   const info = credentialCurrent ? credential.info : undefined
   const credentialWritable = info?.writable === true && !keyBusy
   const edit = (field: Field, value: string) => {
-    setDraft({ values: { ...values, [field]: value }, revision: draft ? draft.revision : form.state.revision })
+    setDraft({ values: { ...values, [field]: value }, revision: draft ? draft.revision : state.revision })
     setMessage(null)
     if (field === 'authMode') { setKey(null); setKeyMessage(null) }
     if (field === 'credentialRef') {
@@ -58,7 +59,7 @@ export function SearchConfig(props: Props) {
       : fields.filter(field => values[field] !== accepted[field]).map(field => ({ op: 'set', path: [field], value: numeric.has(field) ? Number(values[field]) : values[field] }))
     setBusy(true); setMessage(null)
     try {
-      if (await form.mutate(ops, draft ? draft.revision : form.state.revision)) { setDraft(null); setMessage('saved') }
+      if (await props.mutateConfig(ops, draft ? draft.revision : state.revision)) { setDraft(null); setMessage('saved') }
       else setMessage('failed')
     } catch { setMessage('failed') } finally { setBusy(false) }
   }
@@ -84,7 +85,7 @@ export function SearchConfig(props: Props) {
             value={values[field]} onChange={event => edit(field, event.target.value)} disabled={field === 'credentialRef' && keyBusy} />
         </label>)}
       </fieldset>
-      {!form.state.writable && <p role="status">{t('readOnly')}</p>}
+      {!state.writable && <p role="status">{t('readOnly')}</p>}
       {conflict && <p role="alert">{t('conflict')}</p>}
       {message && <p role="status">{t(message)}</p>}
       <div className="dsh-search-actions">

@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import vm from 'node:vm'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const require = createRequire(import.meta.url)
 const code = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
@@ -14,6 +16,9 @@ function harness(overrides = {}) {
   const cleanups = []
   const calls = []
   let face
+  let Component
+  let config = { status: 'ready', value: { credentialRef: 'DSH_CODEX_API_KEY', model: 'search-model' }, revision: 7, writable: true }
+  const formListeners = new Set()
   let onCredential
   let onForm
   const document = {
@@ -36,22 +41,55 @@ function harness(overrides = {}) {
     locale: { register: () => () => calls.push(['locale-disposed']) },
     configForms: { get: entry => {
       assert.equal(entry, 'dsh-search-plugin')
-      return { getSnapshot: () => ({ value: { credentialRef: 'DSH_CODEX_API_KEY' } }), subscribe: fn => { onForm = fn; return () => { onForm = undefined } } }
+      return {
+        getSnapshot: () => config,
+        subscribe: fn => { formListeners.add(fn); onForm = fn; return () => { formListeners.delete(fn); onForm = undefined } },
+        mutate: async (ops, revision) => { calls.push(['mutate', ops, revision]); return true },
+      }
     } },
     remote: { credentials, $on: (event, fn) => {
       assert.equal(event, 'credentials/reference-updated'); onCredential = fn; return () => { onCredential = undefined }
     } },
     slots: {
       inject: (slot, fn) => { assert.equal(slot, 'plugins.bundle.config'); return fn() },
-      register: (options, Component) => {
-        assert.equal(options.key, 'dsh-search-plugin'); assert.equal(typeof Component, 'function')
+      register: (options, registeredComponent) => {
+        assert.equal(options.key, 'dsh-search-plugin'); assert.equal(typeof registeredComponent, 'function')
+        Component = registeredComponent
         face = options.inject()
         return () => calls.push(['slot-disposed'])
       },
     },
   })
-  return { face, calls, styles, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
+  const render = () => renderToStaticMarkup(createElement(Component, {
+    view: 'page', // rc.4 bundle owner supplies no `form` prop.
+    t: key => key,
+    ...face,
+    useConfig: select => select(face.hooks.config.getSnapshot()),
+    useCredential: select => select(face.hooks.credential.getSnapshot()),
+  }))
+  return { face, calls, styles, render, setConfig: value => { config = value; for (const fn of formListeners) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
 }
+
+test('bundle page without owner form renders live configuration and preserves write revision', async () => {
+  const app = harness()
+  assert.match(app.render(), /value="search-model"/)
+  assert.doesNotMatch(app.render(), /unavailable/)
+  let changes = 0
+  const off = app.face.hooks.config.subscribe(() => changes++)
+  app.setConfig({ status: 'ready', value: { model: 'rotated-model' }, revision: 8, writable: false })
+  assert.equal(changes, 1)
+  assert.match(app.render(), /value="rotated-model"/)
+  assert.match(app.render(), /readOnly/)
+  const ops = [{ op: 'set', path: ['model'], value: 'next-model' }]
+  assert.equal(await app.face.mutateConfig(ops, 8), true)
+  assert.deepEqual(app.calls.find(call => call[0] === 'mutate'), ['mutate', ops, 8])
+  off()
+  app.setConfig({ status: 'loading' })
+  assert.match(app.render(), /loading/)
+  app.setConfig({ status: 'unavailable' })
+  assert.match(app.render(), /unavailable/)
+  app.dispose()
+})
 
 test('credential writes use the credentials namespace, never return plaintext, and refresh status', async () => {
   const app = harness()

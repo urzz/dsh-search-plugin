@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "联网搜索与网页抓取",
+    "description": "通过自定义 Responses API 联网搜索，在本机抓取公开网页。支持复用 OpenAI API Key 或管理独立搜索凭据。"
+  }
+}
