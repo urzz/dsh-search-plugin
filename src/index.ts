@@ -12,7 +12,6 @@ export interface Config {
   credentialRef: Volatile<string>
   endpoint: Volatile<string>
   apiKey: Volatile<string | undefined>
-  model: Volatile<string>
   timeoutMs: Volatile<number>
   maxResponseBytes: Volatile<number>
   maxAnswerChars: Volatile<number>
@@ -24,7 +23,6 @@ export const Config = Schema.object({
   credentialRef: Schema.string().pattern(/^[A-Za-z_][A-Za-z0-9_]*$/).default('DSH_CODEX_API_KEY').volatile(),
   endpoint: Schema.string().pattern(/^$|^https?:\/\/[^\s]+$/).default('').volatile(),
   apiKey: Schema.string().role('secret').volatile(),
-  model: Schema.string().default('').volatile(),
   timeoutMs: Schema.number().step(1).min(1).default(60000).volatile(),
   maxResponseBytes: Schema.number().step(1).min(1).default(2000000).volatile(),
   maxAnswerChars: Schema.number().step(1).min(1).default(16000).volatile(),

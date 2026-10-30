@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Web search",
-    "description": "Search the web through a custom Responses API. Reuse your OpenAI API key or manage a separate search credential."
+    "description": "Search through /v1/alpha/search without configuring a model. Reuse your OpenAI base URL and API key or manage a separate search credential."
   }
 }

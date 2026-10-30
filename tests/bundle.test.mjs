@@ -15,8 +15,8 @@ test('official metadata resolver reads exported titles and descriptions without 
   const meta = readPluginMeta('dsh-search-plugin', import.meta.url)
   assert.equal(meta.title.zh, '联网搜索')
   assert.equal(meta.title.en, 'Web search')
-  assert.match(meta.description.zh, /Responses API/)
-  assert.match(meta.description.en, /OpenAI API key/)
+  assert.match(meta.description.zh, /\/v1\/alpha\/search/)
+  assert.match(meta.description.en, /OpenAI base URL and API key/)
 })
 
 function assertEvaluated(value) {
@@ -51,9 +51,8 @@ test('shipped bundle preserves preceding HTTP limits and boots its composed entr
   const ctx = new Context()
   ctx.process = { env: {
     DSH_BUNDLE_TEST_USER_AGENT: 'dsh-bundle-test-agent',
-    DSH_CODEX_ENDPOINT: 'https://bundle-test.invalid/v1/responses',
+    DSH_CODEX_ENDPOINT: 'https://bundle-test.invalid/v1/alpha/search',
     DSH_CODEX_API_KEY: 'bundle-test-placeholder-not-a-secret',
-    DSH_CODEX_MODEL: 'bundle-test-model',
   } }
   const loaderFiber = await ctx.plugin(Loader, { baseUrl: packageURL.href })
   const loader = ctx.get('loader')
@@ -76,6 +75,9 @@ test('shipped bundle preserves preceding HTTP limits and boots its composed entr
     assert.equal(entry.fiber?.state, 2, `${entry.id} activates through the real Loader`)
     assertEvaluated(entry.fiber.config)
   }
+  const searchConfig = loader.resolve('dsh-search-plugin').fiber.config
+  assert.equal(Object.hasOwn(searchConfig, 'model'), false)
+  assert.equal(searchConfig.endpoint.get(), 'https://bundle-test.invalid/v1/alpha/search')
   const httpConfig = loader.resolve('web-fetch-http').fiber.config
   assert.equal(httpConfig.userAgent, 'dsh-bundle-test-agent')
   assert.equal(httpConfig.maxRedirects, 0)

@@ -6,10 +6,10 @@ import type { SearchFace } from './index.js'
 import type { LocaleKey } from './locales.js'
 
 type Props = PropsRuntime<'plugins.bundle.config' | 'plugins.row.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
-const fields = ['authMode', 'openaiProvider', 'credentialRef', 'endpoint', 'model', 'timeoutMs', 'maxResponseBytes', 'maxAnswerChars'] as const
+const fields = ['authMode', 'openaiProvider', 'credentialRef', 'endpoint', 'timeoutMs', 'maxResponseBytes', 'maxAnswerChars'] as const
 type Field = typeof fields[number]
 type Values = Record<Field, string>
-const defaults: Values = { authMode: 'openai', openaiProvider: 'openai', credentialRef: 'DSH_CODEX_API_KEY', endpoint: '', model: '', timeoutMs: '60000', maxResponseBytes: '2000000', maxAnswerChars: '16000' }
+const defaults: Values = { authMode: 'openai', openaiProvider: 'openai', credentialRef: 'DSH_CODEX_API_KEY', endpoint: '', timeoutMs: '60000', maxResponseBytes: '2000000', maxAnswerChars: '16000' }
 const numeric = new Set<Field>(['timeoutMs', 'maxResponseBytes', 'maxAnswerChars'])
 function valuesOf(value: Record<string, unknown>): Values {
   return Object.fromEntries(fields.map(field => [field, String(value[field] ?? defaults[field])])) as Values
@@ -33,6 +33,8 @@ export function SearchConfig(props: Props) {
   const keyText = key?.ref === values.credentialRef ? key.text : ''
   const conflict = draft !== null && draft.revision !== state.revision
   const disabled = !state.writable || busy
+  const independent = values.authMode === 'credential'
+  const visibleFields = fields.filter(field => numeric.has(field) || (independent ? field === 'credentialRef' || field === 'endpoint' : field === 'openaiProvider'))
   const validRef = /^[A-Za-z_][A-Za-z0-9_]*$/.test(values.credentialRef)
   const credentialCurrent = credential.ref === values.credentialRef
   const info = credentialCurrent ? credential.info : undefined
@@ -49,14 +51,19 @@ export function SearchConfig(props: Props) {
     if (conflict) { setMessage('conflict'); return }
     if (!reset) {
       let valid = fields.filter(field => numeric.has(field)).every(field => Number.isSafeInteger(Number(values[field])) && Number(values[field]) > 0)
-      if (values.endpoint) {
-        try { valid &&= ['http:', 'https:'].includes(new URL(values.endpoint).protocol) } catch { valid = false }
-      }
-      if (!valid || !validRef || !values.openaiProvider.trim() || !values.model.trim() || (values.authMode === 'credential' && !values.endpoint)) { setMessage('invalid'); return }
+      if (independent) {
+        try {
+          const endpoint = new URL(values.endpoint)
+          valid &&= validRef && ['http:', 'https:'].includes(endpoint.protocol) && !endpoint.username && !endpoint.password && !endpoint.hash
+        } catch { valid = false }
+      } else valid &&= Boolean(values.openaiProvider.trim())
+      if (!valid) { setMessage('invalid'); return }
     }
+    const savedValues = independent ? values : { ...values, endpoint: '' }
+    const savedFields: Field[] = ['authMode', ...visibleFields, ...(!independent ? ['endpoint' as const] : [])]
     const ops: SettingsPathOpView[] = reset
       ? fields.map(field => ({ op: 'unset', path: [field] }))
-      : fields.filter(field => values[field] !== accepted[field]).map(field => ({ op: 'set', path: [field], value: numeric.has(field) ? Number(values[field]) : values[field] }))
+      : savedFields.filter(field => savedValues[field] !== accepted[field]).map(field => ({ op: 'set', path: [field], value: numeric.has(field) ? Number(savedValues[field]) : savedValues[field] }))
     setBusy(true); setMessage(null)
     try {
       if (await props.mutateConfig(ops, draft ? draft.revision : state.revision)) { setDraft(null); setMessage('saved') }
@@ -80,7 +87,7 @@ export function SearchConfig(props: Props) {
         <label><span>{t('authMode')}</span><select value={values.authMode} onChange={event => edit('authMode', event.target.value)}>
           <option value="openai">{t('openai')}</option><option value="credential">{t('credential')}</option>
         </select></label>
-        {fields.filter(field => field !== 'authMode').map(field => <label key={field}>
+        {visibleFields.map(field => <label key={field}>
           <span>{t(field)}</span><input type={numeric.has(field) ? 'number' : 'text'} min={numeric.has(field) ? 1 : undefined} step={numeric.has(field) ? 1 : undefined}
             value={values[field]} onChange={event => edit(field, event.target.value)} disabled={field === 'credentialRef' && keyBusy} />
         </label>)}

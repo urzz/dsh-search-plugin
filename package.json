@@ -1,7 +1,7 @@
 {
   "name": "dsh-search-plugin",
   "version": "0.1.2",
-  "description": "Web search for DSH through a custom Responses API",
+  "description": "Web search for DSH through /v1/alpha/search",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",

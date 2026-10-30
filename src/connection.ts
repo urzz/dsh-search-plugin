@@ -4,7 +4,7 @@ import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-settings'
 import { WebError, type WebSearchProvider, type WebSearchRequest, type WebSearchResult } from '@deepseek-ai/dsh-web'
 import type { Config } from './index.js'
-import { CodexSearchProvider, type ResponsesConfig } from './provider.js'
+import { CodexSearchProvider, type AlphaSearchConfig } from './provider.js'
 
 function fail(message: string): never {
   throw new WebError(`Web search: ${message}`, 'CODEX_CONFIGURATION_ERROR')
@@ -22,11 +22,10 @@ export class ConfiguredSearchProvider implements WebSearchProvider {
 
   available(): boolean { return true }
 
-  /** Capture endpoint, model, limits and the selected credential as one request configuration. */
-  async resolve(): Promise<ResponsesConfig> {
+  /** Capture endpoint, limits and the selected credential as one request configuration. */
+  async resolve(): Promise<AlphaSearchConfig> {
     const config = this.config
     let endpoint = config.endpoint.get()
-    let model = config.model.get()
     let ref = config.credentialRef.get()
     const literal = config.apiKey.get()
     const limits = {
@@ -55,21 +54,18 @@ export class ConfiguredSearchProvider implements WebSearchProvider {
       }
       base ??= route.defaultBaseURL
       if (!base) fail('selected OpenAI provider has no endpoint')
-      const expected = new URL(`${base.replace(/\/+$/, '')}/responses`)
-      if (endpoint && new URL(endpoint).href !== expected.href) {
-        fail('a different search endpoint requires dedicated credential mode; OpenAI credentials were not forwarded')
-      }
+      const expected = new URL(`${base.replace(/\/+$/, '')}/alpha/search`)
+      // endpoint belongs to independent authentication; never forward reused keys there.
       endpoint = expected.href
-      if (!model) fail('搜索模型未配置。请打开「插件 → 联网搜索 → 配置」，填写支持 web_search 的模型并保存')
       ref = typeof profile.apiKeyEnv === 'string' ? profile.apiKeyEnv : ''
       if (!ref) fail('this provider authentication cannot be reused; configure a dedicated credential')
     }
-    if (!endpoint || !model) fail('请打开「插件 → 联网搜索 → 配置」，填写 Responses 端点和支持 web_search 的模型并保存')
+    if (!endpoint) fail('独立凭据模式需要填写 Alpha Search 完整端点；默认复用 OpenAI 模式无需填写端点')
     const credentials = this.ctx.get('credentials')
     const key = config.authMode.get() === 'credential' && literal
       ? literal : ref && credentials ? (await credentials.resolve(credentialRef(ref)))?.value : undefined
     if (!key) fail('API key is unavailable; configure the selected credential (OAuth reuse is not supported)')
-    return { endpoint, model, apiKey: key, ...limits }
+    return { endpoint, apiKey: key, ...limits }
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {

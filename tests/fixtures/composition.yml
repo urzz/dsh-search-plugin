@@ -16,9 +16,8 @@
     "name": "../../lib/index.js",
     "config": {
       "authMode": "credential",
-      "endpoint": "http://127.0.0.1:1/responses",
+      "endpoint": "http://127.0.0.1:1/v1/alpha/search",
       "apiKey": "composition-test-secret",
-      "model": "composition-search-model",
       "maxAnswerChars": 12
     }
   },

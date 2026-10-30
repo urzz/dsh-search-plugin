@@ -10,7 +10,7 @@ const schemaRequire = createRequire(require.resolve('@deepseek-ai/schemastery'))
 const { updateVolatile } = schemaRequire('@deepseek-ai/cosmokit')
 
 function fixture(input = {}) {
-  let raw = { model: 'search-model', ...input }
+  let raw = { ...input }
   const config = Config(raw)
   const calls = { credentials: [], settings: [], services: [] }
   const state = {
@@ -54,7 +54,7 @@ test('defaults to the OpenAI provider credential reference without copying unrel
   f.profile().model = 'chat-only-model'
   const result = await f.provider.resolve()
   assert.deepEqual(result, {
-    endpoint: 'https://api.example.test/v1/responses', model: 'search-model', apiKey: 'fake-openai-key',
+    endpoint: 'https://api.example.test/v1/alpha/search', apiKey: 'fake-openai-key',
     timeoutMs: 60000, maxResponseBytes: 2000000, maxAnswerChars: 16000,
   })
   assert.deepEqual(f.calls.credentials, ['TEST_OPENAI_KEY'])
@@ -62,16 +62,16 @@ test('defaults to the OpenAI provider credential reference without copying unrel
 })
 
 test('accepts an explicit same endpoint and reads changed provider profiles and live limits', async () => {
-  const f = fixture({ endpoint: 'https://api.example.test/v1/responses' })
+  const f = fixture({ endpoint: 'https://api.example.test/v1/alpha/search' })
   assert.equal((await f.provider.resolve()).apiKey, 'fake-openai-key')
   const endpointRef = f.config.endpoint
   f.profile().baseURL = 'https://second.example.test/custom/'
   f.profile().apiKeyEnv = 'TEST_SECOND_KEY'
   f.state.keys.set('TEST_SECOND_KEY', 'fake-second-key')
-  f.update({ endpoint: '', model: 'next-search-model', timeoutMs: 4567, maxResponseBytes: 12345, maxAnswerChars: 321 })
+  f.update({ endpoint: '', timeoutMs: 4567, maxResponseBytes: 12345, maxAnswerChars: 321 })
   assert.equal(f.config.endpoint, endpointRef)
   assert.deepEqual(await f.provider.resolve(), {
-    endpoint: 'https://second.example.test/custom/responses', model: 'next-search-model', apiKey: 'fake-second-key',
+    endpoint: 'https://second.example.test/custom/alpha/search', apiKey: 'fake-second-key',
     timeoutMs: 4567, maxResponseBytes: 12345, maxAnswerChars: 321,
   })
   assert.deepEqual(f.calls.credentials, ['TEST_OPENAI_KEY', 'TEST_SECOND_KEY'])
@@ -88,19 +88,23 @@ test('resolves credentials every operation, does not cache keys or mutate prior 
   assert.deepEqual(f.calls.credentials, ['TEST_OPENAI_KEY', 'TEST_OPENAI_KEY', 'TEST_OPENAI_KEY'])
 })
 
-test('rejects a different endpoint before resolving or forwarding OpenAI credentials', async () => {
-  const f = fixture({ endpoint: 'https://unrelated.example.test/responses', apiKey: 'unused-literal' })
-  await assert.rejects(f.provider.resolve(), configurationError(/different search endpoint.*not forwarded/))
-  assert.deepEqual(f.calls.credentials, [])
+test('ignores independent endpoint and literal rather than forwarding reused OpenAI credentials there', async () => {
+  const f = fixture({ endpoint: 'https://unrelated.example.test/alpha/search', apiKey: 'unused-literal' })
+  const resolved = await f.provider.resolve()
+  assert.equal(resolved.endpoint, 'https://api.example.test/v1/alpha/search')
+  assert.equal(resolved.apiKey, 'fake-openai-key')
+  assert.deepEqual(f.calls.credentials, ['TEST_OPENAI_KEY'])
 })
 
 test('does not reuse a stale endpoint after the selected OpenAI profile changes', async () => {
-  const f = fixture({ endpoint: 'https://api.example.test/v1/responses' })
+  const f = fixture({ endpoint: 'https://api.example.test/v1/alpha/search' })
   await f.provider.resolve()
   f.profile().baseURL = 'https://new.example.test/v1'
   f.calls.credentials.length = 0
-  await assert.rejects(f.provider.resolve(), configurationError(/different search endpoint/))
-  assert.deepEqual(f.calls.credentials, [])
+  const resolved = await f.provider.resolve()
+  assert.equal(resolved.endpoint, 'https://new.example.test/v1/alpha/search')
+  assert.equal(resolved.apiKey, 'fake-openai-key')
+  assert.deepEqual(f.calls.credentials, ['TEST_OPENAI_KEY'])
 })
 
 test('selects the requested configurable provider rather than the first route', async () => {
@@ -109,16 +113,19 @@ test('selects the requested configurable provider rather than the first route', 
   f.state.sections[0].value.providers.work = { baseURL: 'https://work.example.test/v1', apiKeyEnv: 'TEST_WORK_KEY' }
   f.state.keys.set('TEST_WORK_KEY', 'fake-work-key')
   const result = await f.provider.resolve()
-  assert.equal(result.endpoint, 'https://work.example.test/v1/responses')
+  assert.equal(result.endpoint, 'https://work.example.test/v1/alpha/search')
   assert.equal(result.apiKey, 'fake-work-key')
   assert.deepEqual(f.calls.credentials, ['TEST_WORK_KEY'])
 })
 
-test('requires an explicit search model rather than inheriting the chat model', async () => {
-  const f = fixture({ model: '' })
+test('search works without configuring or inheriting any model', async () => {
+  const f = fixture()
   f.profile().model = 'chat-model'
-  await assert.rejects(f.provider.resolve(), configurationError(/搜索模型未配置.*插件 → 联网搜索 → 配置/))
-  assert.deepEqual(f.calls.credentials, [])
+  const result = await f.provider.resolve()
+  assert.equal(Object.hasOwn(f.config, 'model'), false)
+  assert.equal(Object.hasOwn(result, 'model'), false)
+  assert.equal(result.endpoint, 'https://api.example.test/v1/alpha/search')
+  assert.deepEqual(f.calls.credentials, ['TEST_OPENAI_KEY'])
 })
 
 test('reports unavailable API keys and does not fall back to legacy literals in OpenAI mode', async () => {
@@ -152,7 +159,7 @@ for (const [label, mutate, message] of [
 })
 
 test('dedicated mode uses its own endpoint and reference without reading OpenAI settings', async () => {
-  const f = fixture({ authMode: 'credential', endpoint: 'https://search.example.test/responses', credentialRef: 'TEST_DEDICATED_KEY' })
+  const f = fixture({ authMode: 'credential', endpoint: 'https://search.example.test/alpha/search', credentialRef: 'TEST_DEDICATED_KEY' })
   delete f.services.llm
   delete f.services.settings
   f.state.keys.set('TEST_DEDICATED_KEY', 'fake-dedicated-key')
@@ -164,7 +171,7 @@ test('dedicated mode uses its own endpoint and reference without reading OpenAI 
 })
 
 test('legacy literal takes precedence only in dedicated mode; clearing it restores reference lookup', async () => {
-  const f = fixture({ authMode: 'credential', endpoint: 'https://search.example.test/responses', apiKey: 'fake-legacy-key' })
+  const f = fixture({ authMode: 'credential', endpoint: 'https://search.example.test/alpha/search', apiKey: 'fake-legacy-key' })
   assert.equal((await f.provider.resolve()).apiKey, 'fake-legacy-key')
   assert.deepEqual(f.calls.credentials, [])
   f.update({ apiKey: undefined })
@@ -175,9 +182,9 @@ test('legacy literal takes precedence only in dedicated mode; clearing it restor
   assert.deepEqual(f.calls.credentials, ['DSH_CODEX_API_KEY', 'TEST_OPENAI_KEY'])
 })
 
-for (const patch of [{ endpoint: '' }, { model: '' }]) test(`dedicated mode rejects missing ${Object.keys(patch)[0]} before resolving credentials`, async () => {
-  const f = fixture({ authMode: 'credential', endpoint: 'https://search.example.test/responses', ...patch })
-  await assert.rejects(f.provider.resolve(), configurationError(/插件 → 联网搜索 → 配置.*Responses 端点/))
+test('dedicated mode rejects a missing endpoint before resolving credentials', async () => {
+  const f = fixture({ authMode: 'credential', endpoint: '' })
+  await assert.rejects(f.provider.resolve(), configurationError(/Alpha Search.*端点/))
   assert.deepEqual(f.calls.credentials, [])
 })
 

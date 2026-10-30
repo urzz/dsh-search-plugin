@@ -1,11 +1,11 @@
 /** Typed copy for the search configuration page. */
 export const en = {
-  title: 'Web search', description: 'Search the web through a Responses API.',
+  title: 'Web search', description: 'Search the web through POST /v1/alpha/search.',
   authMode: 'Authentication', openai: 'Reuse OpenAI provider (default)', credential: 'Independent credential',
   openaiProvider: 'OpenAI provider route', credentialRef: 'Credential reference',
-  endpoint: 'Responses endpoint (full URL)', model: 'Search-capable model',
+  endpoint: 'Alpha search endpoint (full URL)',
   timeoutMs: 'Timeout (ms)', maxResponseBytes: 'Maximum response bytes', maxAnswerChars: 'Maximum answer characters',
-  inherit: 'A blank endpoint inherits the OpenAI Responses endpoint. Reused credentials cannot be sent to a different URL; use independent authentication for that. Enter a search-capable model: blank cannot search. Reuse requires an explicit API-key reference (apiKeyEnv) in the model provider configuration; OAuth and native stored credentials are not supported. Set apiKeyEnv there, or choose independent authentication.',
+  inherit: 'By default, reuse the OpenAI baseURL and API-key reference: https://example.com/v1 becomes https://example.com/v1/alpha/search. No endpoint or model is required. Only Alpha search is supported; there is no Responses fallback. Reuse requires an explicit apiKeyEnv reference; OAuth and native stored credentials are not supported. For another address, choose independent authentication and enter its full endpoint URL.',
   trust: 'The endpoint receives your credential and search queries. Only use a trusted service.',
   save: 'Save configuration', reset: 'Reset overrides', discard: 'Discard edits', saving: 'Saving…',
   saved: 'Configuration saved.', failed: 'The configuration was not accepted. Review your edits or reload the page.',
@@ -16,15 +16,15 @@ export const en = {
   keyReadOnly: 'This credential source is read-only.', keySave: 'Store key', keyRemove: 'Remove stored key', keyRefresh: 'Refresh status',
   keySaved: 'Credential updated. Environment or other source layers may still supply a value after removal.',
   keyFailed: 'Credential operation failed. Check the credential provider and retry.', invalidRef: 'Use an environment-style reference name (letters, digits, underscore; not starting with a digit).',
-  invalid: 'Enter a model and provider route, a valid credential reference, positive integer limits, and a valid HTTP(S) endpoint (required for independent authentication).',
+  invalid: 'Use positive integer limits. Reuse requires a provider route; independent authentication requires a valid credential reference and a full HTTP(S) endpoint without credentials or a fragment.',
 } as const
 export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
-  title: '联网搜索', description: '通过 Responses API 搜索互联网。',
+  title: '联网搜索', description: '通过 POST /v1/alpha/search 搜索互联网。',
   authMode: '认证方式', openai: '复用 OpenAI Provider（默认）', credential: '独立凭据',
-  openaiProvider: 'OpenAI Provider 路由', credentialRef: '凭据引用名', endpoint: 'Responses 端点（完整 URL）', model: '支持搜索的模型',
+  openaiProvider: 'OpenAI Provider 路由', credentialRef: '凭据引用名', endpoint: 'Alpha 搜索端点（完整 URL）',
   timeoutMs: '超时（毫秒）', maxResponseBytes: '响应字节上限', maxAnswerChars: '答案字符上限',
-  inherit: '端点留空时继承 OpenAI 的 Responses 端点；复用凭据不能发送到其他 URL，如需使用其他端点请切换独立凭据。必须填写支持搜索的模型，留空不能搜索。复用要求模型 Provider 配置中有显式 API Key 引用（apiKeyEnv），不支持 OAuth 或原生存储凭据；请在那里设置 apiKeyEnv，或选择独立凭据。',
+  inherit: '默认复用 OpenAI 的 baseURL 与 API Key 引用，例如 https://example.com/v1 自动派生 https://example.com/v1/alpha/search，无需填写端点或模型。仅支持 Alpha 搜索，不回退 Responses。复用要求显式 apiKeyEnv 引用，不支持 OAuth 或原生存储凭据；如需其他地址，请切换独立凭据并填写完整端点 URL。',
   trust: '端点会收到凭据与搜索查询，请仅使用可信服务。',
   save: '保存配置', reset: '重置覆盖', discard: '放弃编辑', saving: '保存中…', saved: '配置已保存。',
   failed: '配置未被接受，请检查编辑内容或重新加载页面。', loading: '正在加载配置…', unavailable: '当前无法配置此插件。', readOnly: '配置为只读。',
@@ -34,5 +34,5 @@ export const zh: Record<LocaleKey, string> = {
   keySave: '存储密钥', keyRemove: '移除已存密钥', keyRefresh: '刷新状态',
   keySaved: '凭据已更新；移除后环境变量或其他来源仍可能提供凭据。', keyFailed: '凭据操作失败，请检查凭据提供方后重试。',
   invalidRef: '请输入环境变量格式的引用名（字母、数字、下划线，不能以数字开头）。',
-  invalid: '请填写模型与 Provider 路由、有效凭据引用名、正整数上限及有效 HTTP(S) 端点（独立认证必填）。',
+  invalid: '请填写正整数上限。复用模式需要 Provider 路由；独立认证需要有效凭据引用名与完整 HTTP(S) 端点，URL 不得包含用户名、密码或片段。',
 }

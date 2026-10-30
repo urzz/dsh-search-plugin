@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "联网搜索",
-    "description": "通过自定义 Responses API 联网搜索。支持复用 OpenAI API Key 或管理独立搜索凭据。"
+    "description": "通过 /v1/alpha/search 联网搜索，无需配置模型。默认复用 OpenAI 地址与 API Key，也可管理独立搜索凭据。"
   }
 }

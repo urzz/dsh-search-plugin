@@ -18,7 +18,7 @@ function harness(overrides = {}) {
   let face
   let Component
   const registrations = []
-  let config = { status: 'ready', value: { credentialRef: 'DSH_CODEX_API_KEY', model: 'search-model' }, revision: 7, writable: true }
+  let config = { status: 'ready', value: { authMode: 'credential', credentialRef: 'DSH_CODEX_API_KEY', endpoint: 'https://search.example.test/v1/alpha/search' }, revision: 7, writable: true }
   const formListeners = new Set()
   let onCredential
   let onForm
@@ -76,15 +76,15 @@ function harness(overrides = {}) {
 
 test('bundle page without owner form renders live configuration and preserves write revision', async () => {
   const app = harness()
-  assert.match(app.render(), /value="search-model"/)
+  assert.match(app.render(), /value="https:\/\/search\.example\.test\/v1\/alpha\/search"/)
   assert.doesNotMatch(app.render(), /unavailable/)
   let changes = 0
   const off = app.face.hooks.config.subscribe(() => changes++)
-  app.setConfig({ status: 'ready', value: { model: 'rotated-model' }, revision: 8, writable: false })
+  app.setConfig({ status: 'ready', value: { authMode: 'credential', endpoint: 'https://rotated.example.test/v1/alpha/search' }, revision: 8, writable: false })
   assert.equal(changes, 1)
-  assert.match(app.render(), /value="rotated-model"/)
+  assert.match(app.render(), /value="https:\/\/rotated\.example\.test\/v1\/alpha\/search"/)
   assert.match(app.render(), /readOnly/)
-  const ops = [{ op: 'set', path: ['model'], value: 'next-model' }]
+  const ops = [{ op: 'set', path: ['endpoint'], value: 'https://next.example.test/v1/alpha/search' }]
   assert.equal(await app.face.mutateConfig(ops, 8), true)
   assert.deepEqual(app.calls.find(call => call[0] === 'mutate'), ['mutate', ops, 8])
   off()
@@ -92,6 +92,19 @@ test('bundle page without owner form renders live configuration and preserves wr
   assert.match(app.render(), /loading/)
   app.setConfig({ status: 'unavailable' })
   assert.match(app.render(), /unavailable/)
+  app.dispose()
+})
+
+test('authentication mode shows only its relevant configuration and never a model field', () => {
+  const app = harness()
+  const independent = app.render()
+  assert.match(independent, /<span>endpoint<\/span>/)
+  assert.match(independent, /<span>credentialRef<\/span>/)
+  assert.doesNotMatch(independent, /<span>openaiProvider<\/span>|<span>model<\/span>/)
+  app.setConfig({ status: 'ready', value: { authMode: 'openai', openaiProvider: 'openai-work' }, revision: 8, writable: true })
+  const reused = app.render()
+  assert.match(reused, /value="openai-work"/)
+  assert.doesNotMatch(reused, /<span>endpoint<\/span>|<span>credentialRef<\/span>|<span>model<\/span>|type="password"/)
   app.dispose()
 })
 

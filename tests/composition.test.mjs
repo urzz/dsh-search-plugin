@@ -35,19 +35,7 @@ const sources = [
 ]
 
 function responseBody() {
-  return {
-    status: 'completed',
-    output: [
-      { type: 'web_search_call', status: 'completed', action: { type: 'search', sources } },
-      {
-        type: 'message',
-        content: [{
-          type: 'output_text', text: 'A useful answer with more than twelve characters.',
-          annotations: [{ type: 'url_citation', ...sources[0] }],
-        }],
-      },
-    ],
-  }
+  return { output: 'A useful answer with more than twelve characters.', results: sources }
 }
 
 test('compiled plugin retains injection and configuration through real Loader.unwrapExports', () => {
@@ -60,7 +48,7 @@ test('compiled plugin retains injection and configuration through real Loader.un
   assert.equal(typeof plugin.apply, 'function')
 })
 
-test('real Loader boots the YAML composition, searches Responses, caps sources and unloads providers', { timeout: 15000 }, async t => {
+test('real Loader boots the YAML composition, searches Alpha, caps sources and unloads providers', { timeout: 15000 }, async t => {
   const requests = []
   const server = createServer(async (request, response) => {
     const chunks = []
@@ -78,7 +66,7 @@ test('real Loader boots the YAML composition, searches Responses, caps sources a
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
-  const endpoint = `http://127.0.0.1:${server.address().port}/responses`
+  const endpoint = `http://127.0.0.1:${server.address().port}/v1/alpha/search`
   const entries = await entriesFor(endpoint)
   const ctx = new Context()
   const loaderFiber = await ctx.plugin(Loader, { baseUrl: fixtureURL.href })
@@ -128,20 +116,21 @@ test('real Loader boots the YAML composition, searches Responses, caps sources a
 
   assert.equal(requests.length, 2)
   for (const [index, request] of requests.entries()) {
-    assert.equal(request.url, '/responses')
+    assert.equal(request.url, '/v1/alpha/search')
     assert.equal(request.method, 'POST')
     assert.equal(request.headers.authorization, 'Bearer composition-test-secret')
-    assert.equal(request.body.input, index === 0 ? 'composition seam query' : 'composition tool query')
-    assert.equal(request.body.model, 'composition-search-model')
-    assert.equal(request.body.stream, false)
-    assert.equal(request.body.store, false)
-    assert.deepEqual(request.body.tools, [{ type: 'web_search' }])
-    assert.equal(request.body.tool_choice, 'required')
-    assert.deepEqual(request.body.include, ['web_search_call.action.sources'])
+    const query = index === 0 ? 'composition seam query' : 'composition tool query'
+    assert.equal(typeof request.body.id, 'string')
+    assert.deepEqual(request.body.input, [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: query }] }])
+    assert.equal(request.body.model, 'gpt-5.6-luna')
+    assert.deepEqual(request.body.commands, { search_query: [{ q: query }] })
+    assert.deepEqual(request.body.settings, { allowed_callers: ['direct'], external_web_access: true })
+    assert.equal(request.body.max_output_tokens, 2048)
+    for (const field of ['tools', 'tool_choice', 'include', 'store', 'stream']) assert.equal(Object.hasOwn(request.body, field), false)
   }
 
   // The real HTTP provider must enforce public-address restrictions, not issue
-  // a second request to our credential-bearing Responses endpoint.
+  // a second request to our credential-bearing Alpha endpoint.
   await assert.rejects(web.fetch({ url: endpoint }), error => error.code === 'WEB_BLOCKED_URL')
   assert.equal(requests.length, 2)
 

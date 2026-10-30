@@ -1,97 +1,59 @@
+import { randomUUID } from 'node:crypto'
 import { WebError, type WebSearchProvider, type WebSearchRequest, type WebSearchResult, type WebSearchSource } from '@deepseek-ai/dsh-web'
-/** Resolved values for one Responses request; never persisted or exposed to the browser. */
-export interface ResponsesConfig {
+
+/** Resolved values for one Alpha Search request; never persisted or exposed to the browser. */
+export interface AlphaSearchConfig {
   endpoint: string
   apiKey: string
-  model: string
   timeoutMs: number
   maxResponseBytes: number
   maxAnswerChars: number
 }
 
+// Alpha Search's routing model, not the user's chat/Responses model.
+export const ALPHA_SEARCH_MODEL = 'gpt-5.6-luna'
+
 function protocolError(message: string): never {
   throw new WebError(`Codex search: ${message}`, 'CODEX_PROTOCOL_ERROR')
 }
 
-function object(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) protocolError('expected an object')
-  return value as Record<string, unknown>
-}
-
-function array(value: unknown): unknown[] {
-  if (!Array.isArray(value)) protocolError('expected an array')
-  return value
-}
-
-/** Parse only structured Responses citations and completed search calls, never guessed links. */
+/** Decode Alpha's output/results, never Responses output items or guessed links. */
 export function parseSearchResponse(value: unknown, maxAnswerChars: number): WebSearchResult {
-  const response = object(value)
-  if (response.status !== 'completed') protocolError('response did not complete')
-  let searched = false
-  const texts: string[] = []
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) protocolError('expected an object')
+  const response = value as Record<string, unknown>
+  if (typeof response.output !== 'string') protocolError('output text is missing')
+  if (response.results != null && !Array.isArray(response.results)) protocolError('expected results to be an array')
   const sources = new Map<string, WebSearchSource>()
-  function addSource(value: unknown): void {
-    const source = object(value)
-    if (typeof source.url !== 'string') protocolError('source URL is missing')
+  // Alpha results are opaque, extensible DTOs; only web URLs are citeable sources.
+  for (const item of response.results ?? []) {
+    if (typeof item !== 'object' || item === null || typeof item.url !== 'string') continue
     let url: URL
-    try { url = new URL(source.url) } catch { protocolError('invalid source URL') }
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) protocolError('unsupported source URL')
-    if (source.title !== undefined && typeof source.title !== 'string') protocolError('invalid source title')
-    const previous = sources.get(source.url)
-    sources.set(source.url, {
-      url: source.url,
-      ...(previous?.title !== undefined ? { title: previous.title } : typeof source.title === 'string' ? { title: source.title } : {}),
+    try { url = new URL(item.url) } catch { continue }
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) continue
+    const previous = sources.get(item.url)
+    sources.set(item.url, {
+      url: item.url,
+      ...(previous?.title !== undefined ? { title: previous.title } : typeof item.title === 'string' ? { title: item.title } : {}),
     })
   }
-  for (const itemValue of array(response.output)) {
-    const item = object(itemValue)
-    if (item.type === 'web_search_call') {
-      if (item.status !== 'completed') protocolError('search call did not complete')
-      searched = true
-      if (item.action !== undefined) {
-        const action = object(item.action)
-        if (action.sources !== undefined) for (const source of array(action.sources)) addSource(source)
-      }
-    } else if (item.type === 'message') {
-      for (const contentValue of array(item.content)) {
-        const content = object(contentValue)
-        if (content.type === 'refusal') protocolError('endpoint refused the search')
-        if (content.type !== 'output_text') continue
-        if (typeof content.text !== 'string') protocolError('output text is missing')
-        texts.push(content.text)
-        if (content.annotations !== undefined) {
-          for (const annotationValue of array(content.annotations)) {
-            const annotation = object(annotationValue)
-            if (annotation.type === 'url_citation') addSource(annotation)
-          }
-        }
-      }
-    }
-  }
-  if (!searched) protocolError('no completed web_search_call; endpoint must support web_search')
-  const answer = texts.join('\n\n')
+  // Alpha ref_ids have no meaning in DSH; structured sources are returned separately.
+  const answer = response.output.replace(/\uE200cite\uE202[^\uE201]*\uE201(?:\s*\[wordlim:\s*\d+\])?/gu, '').trim()
   let content = answer.slice(0, maxAnswerChars)
   if (content.length < answer.length && /[\uD800-\uDBFF]$/.test(content)) content = content.slice(0, -1)
-  return {
-    ...(content ? { content } : {}),
-    sources: [...sources.values()],
-    // DSH reserves this flag for omitted sources, not a shortened answer.
-    // This adapter preserves all sources; ctx.web applies the caller's limit.
-    truncated: false,
-  }
+  return { ...(content ? { content } : {}), sources: [...sources.values()], truncated: false }
 }
 
-/** Responses-compatible search backend. No retry, redirect following, or credential forwarding. */
+/** Alpha Search only. No retry, redirect following, or protocol fallback. */
 export class CodexSearchProvider implements WebSearchProvider {
   readonly id = 'codex'
-  private readonly config: ResponsesConfig
+  private readonly config: AlphaSearchConfig
 
-  constructor(config: ResponsesConfig) {
+  constructor(config: AlphaSearchConfig) {
     const endpoint = new URL(config.endpoint)
     if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash) {
       throw new Error('Codex endpoint must be an HTTP(S) URL without credentials or a fragment')
     }
-    if (!config.apiKey.trim() || !config.model.trim()) throw new Error('Codex apiKey and model must be non-empty')
+    if (!config.apiKey.trim()) throw new Error('Codex apiKey must be non-empty')
     this.config = { ...config }
   }
 
@@ -105,15 +67,15 @@ export class CodexSearchProvider implements WebSearchProvider {
         method: 'POST', redirect: 'manual', signal: combined,
         headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
-          model: this.config.model, store: false, stream: false,
-          input: request.query,
-          tools: [{ type: 'web_search' }], tool_choice: 'required',
-          include: ['web_search_call.action.sources'],
+          id: randomUUID(), model: ALPHA_SEARCH_MODEL,
+          input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: request.query }] }],
+          commands: { search_query: [{ q: request.query }] },
+          settings: { allowed_callers: ['direct'], external_web_access: true },
+          max_output_tokens: 2048,
         }),
       })
       if (!response.ok) {
         await response.body?.cancel()
-        // Do not include upstream bodies, which can echo credentials and prompts.
         throw new WebError(`Codex search HTTP ${response.status}`, 'CODEX_HTTP_ERROR')
       }
       if (!response.body) protocolError('empty response body')
@@ -137,13 +99,12 @@ export class CodexSearchProvider implements WebSearchProvider {
       for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.length }
       let value: unknown
       try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer)) }
-      catch { protocolError('expected a UTF-8 JSON response (stream:false); SSE is not supported') }
+      catch { protocolError('expected a UTF-8 JSON response; SSE is not supported') }
       return parseSearchResponse(value, this.config.maxAnswerChars)
     } catch (error) {
       if (error instanceof WebError) throw error
       if (signal?.aborted) throw new WebError('Codex search cancelled', 'WEB_ABORTED')
       if (timeout.aborted) throw new WebError('Codex search timed out', 'CODEX_TIMEOUT')
-      // Transport messages may include URLs or secrets; expose no raw remote error text.
       throw new WebError('Codex search transport failed', 'CODEX_TRANSPORT_ERROR')
     }
   }
