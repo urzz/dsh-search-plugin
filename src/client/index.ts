@@ -95,4 +95,7 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
     name: 'plugins.bundle.config', key: 'dsh-search-plugin', locale: 'searchPlugin', inject: () => face,
   }, SearchConfig)))
+  ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config', key: 'dsh-search-plugin#dsh-search-plugin', locale: 'searchPlugin', inject: () => face,
+  }, SearchConfig)))
 }

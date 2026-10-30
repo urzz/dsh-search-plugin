@@ -1,4 +1,4 @@
-# DSH Search Plugin
+# 联网搜索（Web search）
 
 TypeScript ESM 搜索组合包，目标运行版本 **DSH 0.2.1-rc.4**。注册 `codex` 搜索 Provider，复用官方 `web_search`；网页抓取复用本机 `http` Provider 与 `web_fetch`，不重复注册工具。
 
@@ -22,7 +22,7 @@ bundle 要求标准 DSH base 已有 `web`、`web-fetch-http` 与工具消费者�
 
 ## 配置 UI
 
-Web 界面进入 **插件 → 联网搜索与网页抓取**（英文名 **Web search and fetch**）的组合包配置页，可以编辑：
+Web 界面进入 **插件 → 联网搜索**（英文名 **Web search**）的组合包详情，或点击其 **dsh-search-plugin 组件行 → 配置**，两处共用同一份实时配置，可以编辑：
 
 - 认证模式：默认复用 OpenAI，或使用独立凭据。
 - OpenAI Provider id，默认 `openai`。
@@ -31,7 +31,9 @@ Web 界面进入 **插件 → 联网搜索与网页抓取**（英文名 **Web se
 - 超时、响应字节上限、答案字符上限。
 - 独立凭据引用、是否已配置及可写状态、保存/删除密钥。
 
-组合包及其组件通过导出的中英文 locale 资源显示名称和描述。配置页直接订阅官方 ConfigForms 服务，不依赖组合包详情页传入可选的表单参数。
+组合包及其组件通过导出的中英文 locale 资源显示名称和描述；包名与 Provider id 保持不变，避免破坏已有安装和配置。配置页同时注册 `plugins.bundle.config` 与 `plugins.row.config`（后者 key 为 `dsh-search-plugin#dsh-search-plugin`），直接订阅官方 ConfigForms 服务，不依赖详情页传入可选的表单参数。
+
+首次使用必须填写搜索模型并保存；模型默认为空，不会继承聊天模型。出现“搜索模型未配置”说明请求尚未发出，并非上游搜索故障。若组件行没有“配置”入口，需先更新插件并重启当前 DSH profile，再刷新页面。
 
 页面提供保存与重置，使用官方配置表单、revision 冲突检测和 Host 校验。重置只重置公开配置，不删除凭据或修改旧版密钥字段。密钥单独通过官方 Credentials API 管理：不返回明文、不进入普通配置、不写入浏览器存储；输入留空不会清除已存密钥。删除操作只删除该引用的托管值，若环境中还有同名凭据，官方后端仍会按其优先级解析。
 

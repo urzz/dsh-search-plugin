@@ -5,7 +5,7 @@ import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SearchFace } from './index.js'
 import type { LocaleKey } from './locales.js'
 
-type Props = PropsRuntime<'plugins.bundle.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
+type Props = PropsRuntime<'plugins.bundle.config' | 'plugins.row.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
 const fields = ['authMode', 'openaiProvider', 'credentialRef', 'endpoint', 'model', 'timeoutMs', 'maxResponseBytes', 'maxAnswerChars'] as const
 type Field = typeof fields[number]
 type Values = Record<Field, string>

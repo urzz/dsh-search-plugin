@@ -117,7 +117,7 @@ test('selects the requested configurable provider rather than the first route', 
 test('requires an explicit search model rather than inheriting the chat model', async () => {
   const f = fixture({ model: '' })
   f.profile().model = 'chat-model'
-  await assert.rejects(f.provider.resolve(), configurationError(/choose a search-capable model/))
+  await assert.rejects(f.provider.resolve(), configurationError(/搜索模型未配置.*插件 → 联网搜索 → 配置/))
   assert.deepEqual(f.calls.credentials, [])
 })
 
@@ -177,7 +177,7 @@ test('legacy literal takes precedence only in dedicated mode; clearing it restor
 
 for (const patch of [{ endpoint: '' }, { model: '' }]) test(`dedicated mode rejects missing ${Object.keys(patch)[0]} before resolving credentials`, async () => {
   const f = fixture({ authMode: 'credential', endpoint: 'https://search.example.test/responses', ...patch })
-  await assert.rejects(f.provider.resolve(), configurationError(/configure an endpoint and search-capable model/))
+  await assert.rejects(f.provider.resolve(), configurationError(/插件 → 联网搜索 → 配置.*Responses 端点/))
   assert.deepEqual(f.calls.credentials, [])
 })
 

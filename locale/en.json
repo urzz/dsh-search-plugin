@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Web search and fetch",
-    "description": "Search the web through a custom Responses API and fetch public pages locally. Reuse your OpenAI API key or manage a separate search credential."
+    "title": "Web search",
+    "description": "Search the web through a custom Responses API. Reuse your OpenAI API key or manage a separate search credential."
   }
 }

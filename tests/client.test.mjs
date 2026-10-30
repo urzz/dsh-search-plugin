@@ -17,6 +17,7 @@ function harness(overrides = {}) {
   const calls = []
   let face
   let Component
+  const registrations = []
   let config = { status: 'ready', value: { credentialRef: 'DSH_CODEX_API_KEY', model: 'search-model' }, revision: 7, writable: true }
   const formListeners = new Set()
   let onCredential
@@ -51,15 +52,18 @@ function harness(overrides = {}) {
       assert.equal(event, 'credentials/reference-updated'); onCredential = fn; return () => { onCredential = undefined }
     } },
     slots: {
-      inject: (slot, fn) => { assert.equal(slot, 'plugins.bundle.config'); return fn() },
+      inject: (slot, fn) => { assert.ok(['plugins.bundle.config', 'plugins.row.config'].includes(slot)); return fn() },
       register: (options, registeredComponent) => {
-        assert.equal(options.key, 'dsh-search-plugin'); assert.equal(typeof registeredComponent, 'function')
+        assert.equal(options.key, options.name === 'plugins.row.config' ? 'dsh-search-plugin#dsh-search-plugin' : 'dsh-search-plugin')
+        registrations.push(options.name)
+        assert.equal(typeof registeredComponent, 'function')
         Component = registeredComponent
         face = options.inject()
         return () => calls.push(['slot-disposed'])
       },
     },
   })
+  assert.deepEqual(registrations, ['plugins.bundle.config', 'plugins.row.config'])
   const render = () => renderToStaticMarkup(createElement(Component, {
     view: 'page', // rc.4 bundle owner supplies no `form` prop.
     t: key => key,

@@ -1,6 +1,6 @@
 /** Typed copy for the search configuration page. */
 export const en = {
-  title: 'Codex web search', description: 'Responses API search with local HTTP fetch.',
+  title: 'Web search', description: 'Search the web through a Responses API.',
   authMode: 'Authentication', openai: 'Reuse OpenAI provider (default)', credential: 'Independent credential',
   openaiProvider: 'OpenAI provider route', credentialRef: 'Credential reference',
   endpoint: 'Responses endpoint (full URL)', model: 'Search-capable model',
@@ -20,7 +20,7 @@ export const en = {
 } as const
 export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
-  title: 'Codex 网页搜索', description: 'Responses API 搜索与本机 HTTP 抓取。',
+  title: '联网搜索', description: '通过 Responses API 搜索互联网。',
   authMode: '认证方式', openai: '复用 OpenAI Provider（默认）', credential: '独立凭据',
   openaiProvider: 'OpenAI Provider 路由', credentialRef: '凭据引用名', endpoint: 'Responses 端点（完整 URL）', model: '支持搜索的模型',
   timeoutMs: '超时（毫秒）', maxResponseBytes: '响应字节上限', maxAnswerChars: '答案字符上限',

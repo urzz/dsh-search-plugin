@@ -7,7 +7,7 @@ import type { Config } from './index.js'
 import { CodexSearchProvider, type ResponsesConfig } from './provider.js'
 
 function fail(message: string): never {
-  throw new WebError(`Codex search: ${message}`, 'CODEX_CONFIGURATION_ERROR')
+  throw new WebError(`Web search: ${message}`, 'CODEX_CONFIGURATION_ERROR')
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -60,11 +60,11 @@ export class ConfiguredSearchProvider implements WebSearchProvider {
         fail('a different search endpoint requires dedicated credential mode; OpenAI credentials were not forwarded')
       }
       endpoint = expected.href
-      if (!model) fail('choose a search-capable model in Codex search settings')
+      if (!model) fail('搜索模型未配置。请打开「插件 → 联网搜索 → 配置」，填写支持 web_search 的模型并保存')
       ref = typeof profile.apiKeyEnv === 'string' ? profile.apiKeyEnv : ''
       if (!ref) fail('this provider authentication cannot be reused; configure a dedicated credential')
     }
-    if (!endpoint || !model) fail('configure an endpoint and search-capable model in Codex search settings')
+    if (!endpoint || !model) fail('请打开「插件 → 联网搜索 → 配置」，填写 Responses 端点和支持 web_search 的模型并保存')
     const credentials = this.ctx.get('credentials')
     const key = config.authMode.get() === 'credential' && literal
       ? literal : ref && credentials ? (await credentials.resolve(credentialRef(ref)))?.value : undefined

@@ -13,8 +13,8 @@ const basePatchURL = new URL('./fixtures/bundle-base.patch.yml', import.meta.url
 
 test('official metadata resolver reads exported titles and descriptions without executing the plugin', () => {
   const meta = readPluginMeta('dsh-search-plugin', import.meta.url)
-  assert.equal(meta.title.zh, '联网搜索与网页抓取')
-  assert.equal(meta.title.en, 'Web search and fetch')
+  assert.equal(meta.title.zh, '联网搜索')
+  assert.equal(meta.title.en, 'Web search')
   assert.match(meta.description.zh, /Responses API/)
   assert.match(meta.description.en, /OpenAI API key/)
 })

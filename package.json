@@ -1,7 +1,7 @@
 {
   "name": "dsh-search-plugin",
-  "version": "0.1.1",
-  "description": "Codex Responses web search and local HTTP fetch for DSH",
+  "version": "0.1.2",
+  "description": "Web search for DSH through a custom Responses API",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
