@@ -1,0 +1,15 @@
+# A preceding bundle owns these HTTP limits; the search bundle must preserve them.
+- insert:
+    - id: web
+      name: '@deepseek-ai/dsh-web'
+      config:
+        searchProvider: deepseek-official
+        fetchProvider: http
+    - id: web-fetch-http
+      name: '@deepseek-ai/dsh-web-fetch-http'
+      config:
+        timeoutMs: 4200
+        maxResponseBytes: 23456
+        maxBodyChars: 3456
+        maxRedirects: 0
+        userAgent: !!js process.env.DSH_BUNDLE_TEST_USER_AGENT

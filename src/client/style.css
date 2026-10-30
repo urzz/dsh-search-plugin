@@ -1,0 +1,11 @@
+.dsh-search-config { display: flex; flex-direction: column; gap: 16px; color: var(--dsw-alias-label-primary); }
+.dsh-search-config fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
+.dsh-search-config label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.dsh-search-config input, .dsh-search-config select { box-sizing: border-box; width: 100%; min-height: 38px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; }
+.dsh-search-config button { min-height: 36px; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: var(--dsw-alias-button-elevated-fill); color: inherit; cursor: pointer; font: inherit; }
+.dsh-search-config :disabled { opacity: .55; cursor: not-allowed; }
+.dsh-search-config :focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 2px; }
+.dsh-search-hint { margin: 0; color: var(--dsw-alias-label-tertiary); font-size: 13px; line-height: 1.6; }
+.dsh-search-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.dsh-search-secret { border-top: 1px solid var(--dsw-alias-border-l2); padding-top: 20px; }
+.dsh-search-secret .dsh-search-hint { margin-top: 8px; }

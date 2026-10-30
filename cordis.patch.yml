@@ -1,0 +1,14 @@
+# Requires the standard DSH base bundle (web service, HTTP fetch and tool consumer).
+- id: web
+  config:
+    searchProvider: codex
+    fetchProvider: http
+
+- insert:
+    - id: dsh-search-plugin
+      name: dsh-search-plugin
+      config:
+        authMode: !!js process.env.DSH_CODEX_AUTH_MODE || 'openai'
+        endpoint: !!js process.env.DSH_CODEX_ENDPOINT
+        apiKey: !!js process.env.DSH_CODEX_API_KEY
+        model: !!js process.env.DSH_CODEX_MODEL

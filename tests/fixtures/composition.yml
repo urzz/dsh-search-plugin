@@ -1,0 +1,30 @@
+[
+  {
+    "id": "web",
+    "name": "@deepseek-ai/dsh-web",
+    "config": { "searchProvider": "codex", "fetchProvider": "http" }
+  },
+  { "id": "tools", "name": "@deepseek-ai/dsh-tools" },
+  { "id": "system-prompt", "name": "@deepseek-ai/dsh-system-prompt" },
+  {
+    "id": "http-fetch",
+    "name": "@deepseek-ai/dsh-web-fetch-http",
+    "config": { "timeoutMs": 1000, "maxBodyChars": 1000 }
+  },
+  {
+    "id": "codex",
+    "name": "../../lib/index.js",
+    "config": {
+      "authMode": "credential",
+      "endpoint": "http://127.0.0.1:1/responses",
+      "apiKey": "composition-test-secret",
+      "model": "composition-search-model",
+      "maxAnswerChars": 12
+    }
+  },
+  {
+    "id": "web-tools",
+    "name": "@deepseek-ai/dsh-tool-web",
+    "config": { "searchMaxResults": 2 }
+  }
+]
