@@ -63,9 +63,9 @@ function harness(overrides = {}, interactive = false) {
       assert.equal(event, 'credentials/reference-updated'); onCredential = fn; return () => { onCredential = undefined }
     } },
     slots: {
-      inject: (slot, fn) => { assert.ok(['plugins.bundle.config', 'plugins.row.config'].includes(slot)); return fn() },
+      inject: (slot, fn) => { assert.equal(slot, 'plugins.bundle.config'); return fn() },
       register: (options, registeredComponent) => {
-        assert.equal(options.key, options.name === 'plugins.row.config' ? 'dsh-search-plugin#dsh-search-plugin' : 'dsh-search-plugin')
+        assert.equal(options.key, 'dsh-search-plugin')
         registrations.push(options.name)
         assert.equal(typeof registeredComponent, 'function')
         Component = registeredComponent
@@ -74,7 +74,7 @@ function harness(overrides = {}, interactive = false) {
       },
     },
   })
-  assert.deepEqual(registrations, ['plugins.bundle.config', 'plugins.row.config'])
+  assert.deepEqual(registrations, ['plugins.bundle.config'])
   const props = () => ({
     view: 'page', // rc.4 bundle owner supplies no `form` prop.
     t: key => key,
@@ -82,9 +82,18 @@ function harness(overrides = {}, interactive = false) {
     useConfig: select => select(face.hooks.config.getSnapshot()),
     useCredential: select => select(face.hooks.credential.getSnapshot()),
   })
-  const tree = () => { cursor = 0; return Component(props()) }
+  const expand = node => {
+    if (Array.isArray(node)) return node.map((child, index) => {
+      const expanded = expand(child)
+      return expanded && typeof expanded === 'object' && !Array.isArray(expanded) ? { ...expanded, key: expanded.key ?? String(index) } : expanded
+    })
+    if (!node || typeof node !== 'object') return node
+    if (typeof node.type === 'function') return expand(node.type(node.props))
+    return { ...node, props: { ...node.props, children: expand(node.props?.children) } }
+  }
+  const tree = () => { cursor = 0; return expand(Component(props())) }
   const render = () => renderToStaticMarkup(interactive ? tree() : createElement(Component, props()))
-  const nodes = () => {
+  const nodes = (section) => {
     const result = []
     const visit = node => {
       if (!node || typeof node !== 'object') return
@@ -93,12 +102,16 @@ function harness(overrides = {}, interactive = false) {
       visit(node.props?.children)
     }
     visit(tree())
+    if (!section) return result
+    const form = result.find(node => node.type === 'form' && node.props['aria-label'] === section)
+    result.length = 0
+    visit(form)
     return result
   }
   const field = name => nodes().find(node => node.props?.name === name)
-  const button = label => nodes().find(node => node.type === 'button' && node.props.children === label)
+  const button = (label, section = 'searchSettings') => (label.startsWith('key') ? nodes() : nodes(section)).find(node => node.type === 'button' && node.props.children === label)
   const change = (name, value) => field(name).props.onChange({ target: { value } })
-  const submit = async () => { nodes().find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); await tick() }
+  const submit = async (section = 'searchSettings') => { nodes(section).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); await tick() }
   return { face, calls, styles, render, field, button, change, submit, refuse: () => { mutationResult = false },  setConfig: value => { config = value; for (const fn of formListeners) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
 }
 
@@ -221,20 +234,19 @@ test('protocol switching preserves both drafts and saves them atomically without
   app.dispose()
 })
 
-test('CIDR shortcut is draft-only, merges ranges, and saves a multiline array with fetch limits', async () => {
+test('fetch saves only its four fields and has no CIDR preset', async () => {
   const app = harness({}, true)
+  app.change('endpoint', 'invalid-search-draft')
   app.change('fetchAllowedCidrs', ' 10.0.0.0/8\n\n198.18.0.0/15 ')
-  app.button('cidrPreset').props.onClick()
-  app.button('cidrPreset').props.onClick()
-  assert.equal(app.calls.some(call => call[0] === 'mutate'), false)
-  assert.equal(app.field('fetchAllowedCidrs').props.value, '10.0.0.0/8\n198.18.0.0/15\n192.168.96.0/20')
+  assert.equal(app.button('cidrPreset', 'fetchSettings'), undefined)
   app.change('fetchTimeoutMs', '45000')
-  await app.submit()
+  await app.submit('fetchSettings')
   const ops = app.calls.find(call => call[0] === 'mutate')[1]
   assert.deepEqual(JSON.parse(JSON.stringify(ops)), [
-    { op: 'set', path: ['fetchAllowedCidrs'], value: ['10.0.0.0/8', '198.18.0.0/15', '192.168.96.0/20'] },
+    { op: 'set', path: ['fetchAllowedCidrs'], value: ['10.0.0.0/8', '198.18.0.0/15'] },
     { op: 'set', path: ['fetchTimeoutMs'], value: 45000 },
   ])
+  assert.equal(app.field('endpoint').props.value, 'invalid-search-draft')
   app.dispose()
 })
 
@@ -285,7 +297,7 @@ test('save validation, refusal, conflict discard and reset use real action handl
   const reset = app.calls.filter(call => call[0] === 'mutate').at(-1)
   assert.equal(reset[2], 8)
   assert.ok(reset[1].every(op => op.op === 'unset'))
-  for (const field of ['protocol', 'endpoint', 'deepseekEndpoint', 'deepseekCredentialRef', 'deepseekCount', 'fetchAllowedCidrs', 'fetchTimeoutMs', 'fetchMaxResponseBytes', 'fetchMaxContentChars']) {
+  for (const field of ['protocol', 'endpoint', 'deepseekEndpoint', 'deepseekCredentialRef', 'deepseekCount']) {
     assert.ok(reset[1].some(op => op.path[0] === field))
   }
   app.dispose()
@@ -299,5 +311,58 @@ test('saved protocol chooses its credential reference on host updates', async ()
   app.setConfig({ status: 'ready', value: { protocol: 'deepseek-search-api', deepseekCredentialRef: 'CUSTOM_REF' }, revision: 9, writable: true })
   await tick()
   assert.equal(app.face.hooks.credential.getSnapshot().ref, 'CUSTOM_REF')
+  app.dispose()
+})
+
+
+test('search save and each reset leave the other form draft untouched', async () => {
+  const app = harness({}, true)
+  app.change('fetchTimeoutMs', '0')
+  app.change('endpoint', 'https://next.test/search')
+  await app.submit()
+  let write = app.calls.filter(call => call[0] === 'mutate').at(-1)
+  assert.deepEqual(JSON.parse(JSON.stringify(write[1])), [{ op: 'set', path: ['endpoint'], value: 'https://next.test/search' }])
+  assert.equal(app.field('fetchTimeoutMs').props.value, '0')
+  await app.submit('fetchSettings')
+  assert.match(app.render(), /fetchInvalid/)
+  assert.equal(app.calls.filter(call => call[0] === 'mutate').length, 1)
+  app.change('endpoint', 'https://unsaved.test/search')
+  app.button('reset', 'fetchSettings').props.onClick()
+  await tick()
+  write = app.calls.filter(call => call[0] === 'mutate').at(-1)
+  assert.equal(write[2], 7)
+  assert.deepEqual(JSON.parse(JSON.stringify(write[1])), ['fetchAllowedCidrs', 'fetchTimeoutMs', 'fetchMaxResponseBytes', 'fetchMaxContentChars'].map(field => ({ op: 'unset', path: [field] })))
+  assert.equal(app.field('endpoint').props.value, 'https://unsaved.test/search')
+  app.change('fetchTimeoutMs', '42000')
+  app.button('reset').props.onClick()
+  await tick()
+  write = app.calls.filter(call => call[0] === 'mutate').at(-1)
+  assert.ok(write[1].every(op => op.op === 'unset' && !op.path[0].startsWith('fetch')))
+  assert.equal(app.field('fetchTimeoutMs').props.value, '42000')
+  app.change('endpoint', 'https://retained.test/search')
+  app.button('discard', 'fetchSettings').props.onClick()
+  assert.equal(app.field('endpoint').props.value, 'https://retained.test/search')
+  app.change('fetchTimeoutMs', '43000')
+  app.button('discard').props.onClick()
+  assert.equal(app.field('fetchTimeoutMs').props.value, '43000')
+  app.dispose()
+})
+
+test('both drafts retain the shared host revision fence', async () => {
+  const app = harness({}, true)
+  app.change('endpoint', 'https://draft.test/search')
+  app.change('fetchTimeoutMs', '42000')
+  app.setConfig({ status: 'ready', value: { fetchTimeoutMs: 31000 }, revision: 8, writable: true })
+  for (const section of ['searchSettings', 'fetchSettings']) {
+    assert.equal(app.button('save', section).props.disabled, true)
+    assert.equal(app.button('reset', section).props.disabled, true)
+    await app.submit(section)
+    app.button('reset', section).props.onClick()
+    await tick()
+  }
+  assert.equal(app.calls.some(call => call[0] === 'mutate'), false)
+  app.button('discard', 'fetchSettings').props.onClick()
+  assert.equal(app.field('fetchTimeoutMs').props.value, '31000')
+  assert.equal(app.field('endpoint').props.value, 'https://draft.test/search')
   app.dispose()
 })

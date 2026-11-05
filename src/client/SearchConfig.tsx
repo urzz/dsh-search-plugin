@@ -5,17 +5,15 @@ import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SearchFace } from './index.js'
 import type { LocaleKey } from './locales.js'
 
-type Props = PropsRuntime<'plugins.bundle.config' | 'plugins.row.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
-const defaults = { protocol: 'codex-alpha', authMode: 'openai', openaiProvider: 'openai', credentialRef: 'DSH_CODEX_API_KEY', endpoint: '', timeoutMs: '60000', maxResponseBytes: '2000000', maxAnswerChars: '16000', deepseekEndpoint: 'https://api.deepseek.com/v1/tools', deepseekCredentialRef: 'DEEPSEEK_API_KEY', deepseekCount: '10', fetchAllowedCidrs: '', fetchTimeoutMs: '30000', fetchMaxResponseBytes: '5000000', fetchMaxContentChars: '100000' }
+export type Props = PropsRuntime<'plugins.bundle.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
+const defaults = { protocol: 'codex-alpha', authMode: 'openai', openaiProvider: 'openai', credentialRef: 'DSH_CODEX_API_KEY', endpoint: '', timeoutMs: '60000', maxResponseBytes: '2000000', maxAnswerChars: '16000', deepseekEndpoint: 'https://api.deepseek.com/v1/tools', deepseekCredentialRef: 'DEEPSEEK_API_KEY', deepseekCount: '10' }
 type Field = keyof typeof defaults
 type Values = Record<Field, string>
 const fields = Object.keys(defaults) as Field[]
 const alphaLimits: Field[] = ['timeoutMs', 'maxResponseBytes', 'maxAnswerChars']
-const fetchLimits: Field[] = ['fetchTimeoutMs', 'fetchMaxResponseBytes', 'fetchMaxContentChars']
-const numeric = new Set<Field>([...alphaLimits, ...fetchLimits, 'deepseekCount'])
-const cidrsOf = (text: string) => text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+const numeric = new Set<Field>([...alphaLimits, 'deepseekCount'])
 function valuesOf(value: Record<string, unknown>): Values {
-  return Object.fromEntries(fields.map(field => [field, field === 'fetchAllowedCidrs' ? (value[field] as string[] | undefined)?.join('\n') ?? '' : String(value[field] ?? defaults[field])])) as Values
+  return Object.fromEntries(fields.map(field => [field, String(value[field] ?? defaults[field])])) as Values
 }
 function validEndpoint(value: string) {
   try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.hash } catch { return false }
@@ -58,7 +56,7 @@ export function SearchConfig(props: Props) {
   const save = async (reset: boolean) => {
     if (conflict) { setMessage('conflict'); return }
     if (!reset) {
-      const activeNumeric = [...fetchLimits, ...(deepseek ? ['deepseekCount' as const] : alphaLimits)]
+      const activeNumeric = deepseek ? ['deepseekCount' as const] : alphaLimits
       let valid = activeNumeric.every(field => Number.isSafeInteger(Number(values[field])) && Number(values[field]) > 0)
       valid &&= deepseek ? Number(values.deepseekCount) <= 50 && validRef && validEndpoint(values.deepseekEndpoint) : independent ? validRef && validEndpoint(values.endpoint) : Boolean(values.openaiProvider.trim())
       if (!valid) { setMessage('invalid'); return }
@@ -66,7 +64,7 @@ export function SearchConfig(props: Props) {
     // Include changed fields from both protocol drafts; hidden accepted values are never cleared.
     const ops: SettingsPathOpView[] = reset
       ? fields.map(field => ({ op: 'unset', path: [field] }))
-      : fields.filter(field => values[field] !== accepted[field]).map(field => ({ op: 'set', path: [field], value: numeric.has(field) ? Number(values[field]) : field === 'fetchAllowedCidrs' ? cidrsOf(values[field]) : values[field] }))
+      : fields.filter(field => values[field] !== accepted[field]).map(field => ({ op: 'set', path: [field], value: numeric.has(field) ? Number(values[field]) : values[field] }))
     setBusy(true); setMessage(null)
     try {
       if (await props.mutateConfig(ops, draft ? draft.revision : state.revision)) { setDraft(null); setMessage('saved'); setKey(null) }
@@ -83,7 +81,7 @@ export function SearchConfig(props: Props) {
   }
   const input = (field: Field) => <label key={field}><span>{t(field)}</span><input name={field} type={numeric.has(field) ? 'number' : 'text'} min={numeric.has(field) ? 1 : undefined} max={field === 'deepseekCount' ? 50 : undefined} step={numeric.has(field) ? 1 : undefined} value={values[field]} onChange={event => edit(field, event.target.value)} disabled={field === refField && keyBusy} /></label>
   return <div className="dsh-search-config">
-    <form onSubmit={event => { event.preventDefault(); void save(false) }}>
+    <form aria-label={t('searchSettings')} onSubmit={event => { event.preventDefault(); void save(false) }}>
       <fieldset disabled={disabled || keyBusy}>
         <legend>{t('searchSettings')}</legend>
         <label><span>{t('protocol')}</span><select name="protocol" value={values.protocol} onChange={event => edit('protocol', event.target.value)}><option value="codex-alpha">{t('codexAlpha')}</option><option value="deepseek-search-api">{t('deepseekSearchApi')}</option></select></label>
@@ -93,13 +91,6 @@ export function SearchConfig(props: Props) {
       <p className="dsh-search-hint">{t(deepseek ? 'deepseekHint' : 'inherit')}</p>
       <p className="dsh-search-hint">{t('trust')}</p>
       {!deepseek && <fieldset disabled={disabled}><legend>{t('searchLimits')}</legend>{alphaLimits.map(input)}</fieldset>}
-      <fieldset disabled={disabled}>
-        <legend>{t('fetchSettings')}</legend>
-        <label className="dsh-search-wide"><span>{t('fetchAllowedCidrs')}</span><textarea name="fetchAllowedCidrs" rows={4} value={values.fetchAllowedCidrs} onChange={event => edit('fetchAllowedCidrs', event.target.value)} aria-describedby="dsh-search-cidr-hint" /></label>
-        <p id="dsh-search-cidr-hint" className="dsh-search-hint dsh-search-wide">{t('cidrHint')}</p>
-        <button type="button" className="dsh-search-wide" onClick={() => edit('fetchAllowedCidrs', [...new Set([...cidrsOf(values.fetchAllowedCidrs), '198.18.0.0/15', '192.168.96.0/20'])].join('\n'))}>{t('cidrPreset')}</button>
-        {fetchLimits.map(input)}
-      </fieldset>
       {!state.writable && <p role="status">{t('readOnly')}</p>}
       {conflict && <p role="alert">{t('conflict')}</p>}
       {message && <p role="status">{t(message)}</p>}

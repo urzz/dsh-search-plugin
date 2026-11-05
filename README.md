@@ -12,20 +12,21 @@ web_fetch  → ctx.web → search-http → 官方 HttpFetchProvider + CIDR resol
 ```sh
 pnpm install
 pnpm check
-dsh plugin --profile <name> add ./dsh-search-plugin
+dsh plugin --profile <name> add dsh-search-plugin
 ```
 
-本地 checkout 安装需要保留目录及构建产物。更新已经安装的包后需要重启 DSH profile，再刷新网页。仅构建本仓库不会更新已经运行的 GUI。bundle 选择 `searchProvider: codex`、`fetchProvider: search-http`，标准 base 需已有 web 服务与工具消费者；旧 `http` provider 保留，其配置不被修改，但默认路由改由本插件接管。
+通过 npm 发布版本安装和更新；修复不直接覆盖本机已安装插件。更新已经安装的包后需要重启 DSH profile，再刷新网页。仅构建本仓库不会更新已经运行的 GUI。bundle 选择 `searchProvider: codex`、`fetchProvider: search-http`，标准 base 需已有 web 服务与工具消费者；旧 `http` provider 保留，其配置不被修改，但默认路由改由本插件接管。
 
 ## 配置 UI
 
-进入 **插件 → 联网搜索 → 配置**，或组件行的配置页面。
+进入 **插件 → 联网搜索 → 配置**。仅保留插件包这一处配置入口，内部组件行不重复提供相同表单。
 
 - 搜索协议选择器动态显示对应协议字段；切换协议保留各自配置，保存后下一次操作生效。
 - Alpha 可复用 OpenAI provider，或使用独立端点与凭据。仅 Alpha 显示超时、响应和答案上限。
 - DeepSeek 显示 API 基础地址、独立凭据引用和结果数量；使用官方 Search API 实现和传输限制。
-- 网页抓取独立分组：CIDR 多行授权、超时与正文限制。可将常见代理网段填入草稿，再保存生效。
-- 保存使用官方 ConfigForms 与 revision 冲突检查，支持放弃编辑、重置覆盖、只读与失败提示。
+- 搜索与网页抓取使用独立表单，各自管理草稿、校验、保存、放弃编辑和重置覆盖；操作只修改所属字段。
+- 网页抓取配置包含 CIDR 多行授权、超时与正文限制。按实际网络环境手动填写 CIDR，不提供预设网段按钮。
+- 保存使用官方 ConfigForms 与 revision 冲突检查，支持只读与失败提示。
 - 密钥走官方 Credentials API 单独保存、删除和刷新状态；不回显、不放入公开配置和浏览器持久存储。删除托管值后，环境变量等其他来源仍可能提供同名凭据。
 
 ## 搜索配置

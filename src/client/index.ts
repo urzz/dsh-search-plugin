@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import { SearchConfig } from './SearchConfig.js'
+import { BundleConfig } from './BundleConfig.js'
 import { en, zh, type LocaleKey } from './locales.js'
 import css from './style.css'
 
@@ -98,8 +98,5 @@ export function apply(ctx: Context): void {
   }
   ctx.effect(() => ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
     name: 'plugins.bundle.config', key: 'dsh-search-plugin', locale: 'searchPlugin', inject: () => face,
-  }, SearchConfig)))
-  ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
-    name: 'plugins.row.config', key: 'dsh-search-plugin#dsh-search-plugin', locale: 'searchPlugin', inject: () => face,
-  }, SearchConfig)))
+  }, BundleConfig)))
 }
