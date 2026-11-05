@@ -1,6 +1,10 @@
 {
   "name": "dsh-search-plugin",
-  "version": "0.1.4",
+  "version": "0.1.5",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/urzz/dsh-search-plugin.git"
+  },
   "description": "Give agents access to information from the web to inform their analysis and decisions.",
   "type": "module",
   "main": "lib/index.js",
