@@ -1,6 +1,7 @@
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
 import ipaddr from 'ipaddr.js'
+import { validateCidr } from './cidr.js'
 import { WebError, type WebFetchProvider, type WebFetchRequest } from '@deepseek-ai/dsh-web'
 import { HttpFetchProvider, type HttpFetchResolver } from '@deepseek-ai/dsh-web-fetch-http'
 
@@ -16,20 +17,9 @@ interface Cidr { bytes: number[]; prefix: number }
 const bareHost = (host: string) => host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
 
 function parseCidr(rule: string): Cidr {
-  const [address, prefixText, ...extra] = rule.trim().split('/')
-  if (!address || !prefixText || extra.length || !/^(0|[1-9]\d*)$/.test(prefixText) || !isIP(address) || address.includes('%')) {
-    throw new Error(`Invalid CIDR: ${JSON.stringify(rule)}`)
-  }
-  const bytes = ipaddr.parse(address).toByteArray()
+  const [address, prefixText] = validateCidr(rule).trim().split('/')
+  const bytes = ipaddr.parse(address!).toByteArray()
   const prefix = Number(prefixText)
-  if (prefix > bytes.length * 8) throw new Error(`Invalid CIDR prefix: ${JSON.stringify(rule)}`)
-  // Requiring the network base catches accidental overly broad operator rules.
-  if (bytes.some((byte, i) => (byte & (255 >>> Math.max(0, Math.min(8, prefix - i * 8)))) !== 0)) {
-    throw new Error(`CIDR must use its network base: ${JSON.stringify(rule)}`)
-  }
-  if (bytes.length === 16 && isEmbeddedV4(bytes) && bytes.some(Boolean) && !(bytes.slice(0, 15).every(b => b === 0) && bytes[15] === 1)) {
-    throw new Error(`Use an IPv4 CIDR for IPv4-mapped or compatible addresses: ${JSON.stringify(rule)}`)
-  }
   return { bytes, prefix }
 }
 

@@ -1,7 +1,8 @@
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
 import { ConfiguredSearchProvider } from './connection.js'
-import { ConfiguredFetchProvider, validateCidrs } from './fetch.js'
+import { ConfiguredFetchProvider } from './fetch.js'
+import { validateCidr } from './cidr.js'
 
 export const name = 'dsh-search-plugin'
 export const inject = ['web']
@@ -31,10 +32,7 @@ export const Config = Schema.object({
   deepseekEndpoint: Schema.string().pattern(/^https?:\/\/[^\s]+$/).default('https://api.deepseek.com/v1/tools').volatile(),
   deepseekCredentialRef: Schema.string().pattern(/^[A-Za-z_][A-Za-z0-9_]*$/).default('DEEPSEEK_API_KEY').volatile(),
   deepseekCount: Schema.number().step(1).min(1).max(50).default(10).volatile(),
-  fetchAllowedCidrs: Schema.transform(Schema.array(Schema.string()), value => {
-    if (!validateCidrs(value)) throw new Error('Use valid IPv4 or IPv6 network CIDRs')
-    return value
-  }, true).default([]).volatile(),
+  fetchAllowedCidrs: Schema.array(Schema.transform(Schema.string(), validateCidr, true)).default([]).volatile(),
   fetchTimeoutMs: Schema.number().step(1).min(1).default(30000).volatile(),
   fetchMaxResponseBytes: Schema.number().step(1).min(1).default(5000000).volatile(),
   fetchMaxContentChars: Schema.number().step(1).min(1).default(100000).volatile(),

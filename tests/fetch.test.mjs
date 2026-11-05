@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import dns from 'node:dns/promises'
+import Schema from '@deepseek-ai/schemastery'
+import { Config } from '../lib/index.js'
 import { syncBuiltinESMExports } from 'node:module'
 import { ConfiguredFetchProvider, validateCidrs, resolveAllowedAddresses } from '../lib/fetch.js'
 
@@ -19,6 +21,19 @@ async function server(t, handler) {
 }
 
 // Every endpoint is local or every lookup is synthetic: no external networking.
+test('CIDR validation survives the settings wire schema round trip', () => {
+  const wire = JSON.parse(JSON.stringify(Config.dict.fetchAllowedCidrs.toJSON()))
+  for (const node of Object.values(wire.refs)) delete node.meta.volatile
+  const browserSchema = new Schema(wire)
+  assert.deepEqual(browserSchema([]), [])
+  for (const cidr of ['198.18.0.0/15', '192.168.96.0/20', '::1/128', 'fc00::/7', '2001:db8::/32', '0.0.0.0/0', '::/0']) {
+    assert.deepEqual(browserSchema([cidr]), [cidr])
+  }
+  for (const cidr of ['10.0.0.1/8', '::/129', 'fc00::1/7', '::ffff:127.0.0.0/104', '010.0.0.0/8', 'fe80::%eth0/10']) {
+    assert.throws(() => browserSchema([cidr]), undefined, cidr)
+  }
+})
+
 test('CIDR validation accepts network bases for both families and refuses ambiguous rules', () => {
   assert.equal(validateCidrs([]), true)
   for (const cidr of ['198.18.0.0/15', '192.168.96.0/20', '::1/128', 'fc00::/7', '2001:db8::/32', '0.0.0.0/0', '::/0']) {
