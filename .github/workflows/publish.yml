@@ -1,0 +1,46 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+      - name: Update npm for trusted publishing
+        run: npm install --global npm@11
+      - name: Verify version tag
+        id: version
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (process.env.GITHUB_REF_NAME !== `v${version}`) {
+            throw new Error(`Tag ${process.env.GITHUB_REF_NAME} must match package version v${version}`);
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${version.includes('-') ? 'next' : 'latest'}\n`);
+          NODE
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build and test
+        run: pnpm check
+      - name: Publish package
+        run: npm publish --access public --provenance --tag "${{ steps.version.outputs.dist_tag }}"

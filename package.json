@@ -1,6 +1,6 @@
 {
   "name": "dsh-search-plugin",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Give agents access to information from the web to inform their analysis and decisions.",
   "type": "module",
   "main": "lib/index.js",
