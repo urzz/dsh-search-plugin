@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "联网搜索",
-    "description": "通过 /v1/alpha/search 联网搜索，无需配置模型。默认复用 OpenAI 地址与 API Key，也可管理独立搜索凭据。"
+    "description": "将互联网作为智能体的信息来源，为分析与判断补充外部依据。"
   }
 }

@@ -15,8 +15,8 @@ test('official metadata resolver reads exported titles and descriptions without 
   const meta = readPluginMeta('dsh-search-plugin', import.meta.url)
   assert.equal(meta.title.zh, '联网搜索')
   assert.equal(meta.title.en, 'Web search')
-  assert.match(meta.description.zh, /\/v1\/alpha\/search/)
-  assert.match(meta.description.en, /OpenAI base URL and API key/)
+  assert.equal(meta.description.zh, '将互联网作为智能体的信息来源，为分析与判断补充外部依据。')
+  assert.equal(meta.description.en, 'Give agents access to information from the web to inform their analysis and decisions.')
 })
 
 function assertEvaluated(value) {

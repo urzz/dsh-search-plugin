@@ -1,5 +1,7 @@
 # 联网搜索（Web search）
 
+将互联网作为智能体的信息来源，为分析与判断补充外部依据。
+
 TypeScript ESM 搜索组合包，目标运行版本 **DSH 0.2.1-rc.4**。注册 `codex` 搜索 Provider，复用官方 `web_search`；网页抓取复用本机 `http` Provider 与 `web_fetch`，不重复注册工具。
 
 ```text

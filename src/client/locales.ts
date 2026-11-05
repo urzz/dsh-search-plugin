@@ -1,6 +1,6 @@
 /** Typed copy for the search configuration page. */
 export const en = {
-  title: 'Web search', description: 'Search the web through POST /v1/alpha/search.',
+  title: 'Web search', description: 'Give agents access to information from the web to inform their analysis and decisions.',
   authMode: 'Authentication', openai: 'Reuse OpenAI provider (default)', credential: 'Independent credential',
   openaiProvider: 'OpenAI provider route', credentialRef: 'Credential reference',
   endpoint: 'Alpha search endpoint (full URL)',
@@ -20,7 +20,7 @@ export const en = {
 } as const
 export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
-  title: '联网搜索', description: '通过 POST /v1/alpha/search 搜索互联网。',
+  title: '联网搜索', description: '将互联网作为智能体的信息来源，为分析与判断补充外部依据。',
   authMode: '认证方式', openai: '复用 OpenAI Provider（默认）', credential: '独立凭据',
   openaiProvider: 'OpenAI Provider 路由', credentialRef: '凭据引用名', endpoint: 'Alpha 搜索端点（完整 URL）',
   timeoutMs: '超时（毫秒）', maxResponseBytes: '响应字节上限', maxAnswerChars: '答案字符上限',
