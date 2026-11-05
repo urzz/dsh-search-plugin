@@ -1,6 +1,13 @@
 /** Typed copy for the search configuration page. */
 export const en = {
   title: 'Web search', description: 'Give agents access to information from the web to inform their analysis and decisions.',
+  protocol: 'Search protocol', codexAlpha: 'Codex Alpha', deepseekSearchApi: 'DeepSeek Search API',
+  searchSettings: 'Search service', searchLimits: 'Alpha search limits', fetchSettings: 'Web fetch', credentials: 'Credential management', credentialTarget: 'Selected credential reference',
+  deepseekEndpoint: 'DeepSeek API base URL', deepseekCredentialRef: 'DeepSeek credential reference', deepseekCount: 'Search results (1–50)',
+  deepseekHint: 'Uses the official DeepSeek Search API adapter. The API base URL defaults to https://api.deepseek.com/v1/tools; the adapter appends /search. Alpha timeout and response limits do not apply to this adapter.',
+  fetchAllowedCidrs: 'Additional allowed CIDR ranges (one per line)', fetchTimeoutMs: 'Fetch timeout (ms)', fetchMaxResponseBytes: 'Fetch maximum response bytes', fetchMaxContentChars: 'Fetch maximum content characters',
+  cidrHint: 'These ranges explicitly allow web_fetch to reach otherwise blocked network addresses. An empty list adds no exceptions. Enter one IPv4 or IPv6 CIDR per line; other URL, DNS, redirect and transport safety checks still apply. The shortcut only updates this draft; save configuration to apply it.',
+  cidrPreset: 'Add 198.18.0.0/15 and 192.168.96.0/20 to draft',
   authMode: 'Authentication', openai: 'Reuse OpenAI provider (default)', credential: 'Independent credential',
   openaiProvider: 'OpenAI provider route', credentialRef: 'Credential reference',
   endpoint: 'Alpha search endpoint (full URL)',
@@ -16,11 +23,18 @@ export const en = {
   keyReadOnly: 'This credential source is read-only.', keySave: 'Store key', keyRemove: 'Remove stored key', keyRefresh: 'Refresh status',
   keySaved: 'Credential updated. Environment or other source layers may still supply a value after removal.',
   keyFailed: 'Credential operation failed. Check the credential provider and retry.', invalidRef: 'Use an environment-style reference name (letters, digits, underscore; not starting with a digit).',
-  invalid: 'Use positive integer limits. Reuse requires a provider route; independent authentication requires a valid credential reference and a full HTTP(S) endpoint without credentials or a fragment.',
+  invalid: 'Use positive integer limits and 1–50 DeepSeek results. Reuse requires a provider route; independent authentication and DeepSeek require a valid credential reference and a full HTTP(S) URL without credentials or a fragment.',
 } as const
 export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
   title: '联网搜索', description: '将互联网作为智能体的信息来源，为分析与判断补充外部依据。',
+  protocol: '搜索协议', codexAlpha: 'Codex Alpha', deepseekSearchApi: 'DeepSeek Search API',
+  searchSettings: '搜索服务', searchLimits: 'Alpha 搜索限制', fetchSettings: '网页抓取', credentials: '凭据管理', credentialTarget: '当前凭据引用',
+  deepseekEndpoint: 'DeepSeek API 基础地址', deepseekCredentialRef: 'DeepSeek 凭据引用名', deepseekCount: '搜索结果数量（1–50）',
+  deepseekHint: '使用官方 DeepSeek Search API 适配器。API 基础地址默认为 https://api.deepseek.com/v1/tools，适配器自动追加 /search。Alpha 超时与响应限制不适用于此适配器。',
+  fetchAllowedCidrs: '额外放行 CIDR 网段（每行一个）', fetchTimeoutMs: '抓取超时（毫秒）', fetchMaxResponseBytes: '抓取响应字节上限', fetchMaxContentChars: '抓取内容字符上限',
+  cidrHint: '这些网段明确允许 web_fetch 访问原本受阻的网络地址。空列表不增加放行例外。每行填写一个 IPv4 或 IPv6 CIDR；其他 URL、DNS、重定向和传输安全检查仍然适用。快捷按钮仅修改草稿，保存配置后生效。',
+  cidrPreset: '将 198.18.0.0/15 和 192.168.96.0/20 加入草稿',
   authMode: '认证方式', openai: '复用 OpenAI Provider（默认）', credential: '独立凭据',
   openaiProvider: 'OpenAI Provider 路由', credentialRef: '凭据引用名', endpoint: 'Alpha 搜索端点（完整 URL）',
   timeoutMs: '超时（毫秒）', maxResponseBytes: '响应字节上限', maxAnswerChars: '答案字符上限',
@@ -34,5 +48,5 @@ export const zh: Record<LocaleKey, string> = {
   keySave: '存储密钥', keyRemove: '移除已存密钥', keyRefresh: '刷新状态',
   keySaved: '凭据已更新；移除后环境变量或其他来源仍可能提供凭据。', keyFailed: '凭据操作失败，请检查凭据提供方后重试。',
   invalidRef: '请输入环境变量格式的引用名（字母、数字、下划线，不能以数字开头）。',
-  invalid: '请填写正整数上限。复用模式需要 Provider 路由；独立认证需要有效凭据引用名与完整 HTTP(S) 端点，URL 不得包含用户名、密码或片段。',
+  invalid: '请填写正整数上限，DeepSeek 结果数量须为 1–50。复用模式需要 Provider 路由；独立认证和 DeepSeek 需要有效凭据引用名与完整 HTTP(S) 地址，URL 不得包含用户名、密码或片段。',
 }

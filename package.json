@@ -1,6 +1,6 @@
 {
   "name": "dsh-search-plugin",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/urzz/dsh-search-plugin.git"
@@ -16,10 +16,12 @@
     },
     "./client": "./lib/client.js",
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
   "files": [
     "lib",
+    "icon.svg",
     "locale/*.json",
     "cordis.patch.yml",
     "README.md"
@@ -50,12 +52,15 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "~3.18.4"
+    "@deepseek-ai/dsh-web-deepseek-api": "0.2.1-rc.4",
+    "@deepseek-ai/schemastery": "~3.18.4",
+    "ipaddr.js": "^2.5.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.0",
     "@deepseek-ai/dsh-credentials": "0.2.1-rc.4",
-    "@deepseek-ai/dsh-web": "0.2.1-rc.4"
+    "@deepseek-ai/dsh-web": "0.2.1-rc.4",
+    "@deepseek-ai/dsh-web-fetch-http": "0.2.1-rc.4"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.0",

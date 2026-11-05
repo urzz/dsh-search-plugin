@@ -38,7 +38,7 @@ test('shipped bundle preserves preceding HTTP limits and boots its composed entr
 
   const web = entries.find(entry => entry.id === 'web')
   assert.equal(web.config.searchProvider, 'codex')
-  assert.equal(web.config.fetchProvider, 'http')
+  assert.equal(web.config.fetchProvider, 'search-http')
   const previousHttp = composeEntries([basePatches]).find(entry => entry.id === 'web-fetch-http')
   const http = entries.find(entry => entry.id === 'web-fetch-http')
   assert.deepEqual(http.config, previousHttp.config, 'search must not replace an earlier bundle\'s HTTP policy')

@@ -66,7 +66,11 @@ export function apply(ctx: Context): void {
   const form = ctx.configForms.get<Record<string, unknown>>('dsh-search-plugin')
   const refresh = () => {
     const value = form.getSnapshot().value
-    if (value) describeCredential(typeof value.credentialRef === 'string' ? value.credentialRef : 'DSH_CODEX_API_KEY')
+    if (value) {
+      const deepseek = value.protocol === 'deepseek-search-api'
+      const ref = deepseek ? value.deepseekCredentialRef : value.credentialRef
+      describeCredential(typeof ref === 'string' ? ref : deepseek ? 'DEEPSEEK_API_KEY' : 'DSH_CODEX_API_KEY')
+    }
   }
   ctx.effect(() => form.subscribe(refresh))
   refresh()

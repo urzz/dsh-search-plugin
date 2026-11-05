@@ -10,7 +10,10 @@ const require = createRequire(import.meta.url)
 const code = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
 const tick = async () => { await Promise.resolve(); await Promise.resolve() }
 
-function harness(overrides = {}) {
+function harness(overrides = {}, interactive = false) {
+  const states = []
+  let cursor = 0
+  let mutationResult = true
   let registration
   const styles = []
   const cleanups = []
@@ -26,10 +29,18 @@ function harness(overrides = {}) {
     createElement: () => ({ dataset: {}, textContent: '', remove() { styles.splice(styles.indexOf(this), 1) } }),
     head: { append: style => styles.push(style) },
   }
-  vm.runInNewContext(code, { window: { __ModuleLoader__: { load: value => { registration = value } } }, document })
+  vm.runInNewContext(code, { window: { __ModuleLoader__: { load: value => { registration = value } } }, document, URL })
   assert.equal(registration.id, 'dsh-search-plugin')
   assert.equal(styles.length, 0, 'registration does not execute side effects')
-  const plugin = registration.factory(require)
+  // Drive the actual component handlers with persistent hook state, without a DOM dependency.
+  const plugin = registration.factory(id => id === 'react' && interactive ? {
+    ...require(id),
+    useState(initial) {
+      const index = cursor++
+      if (!(index in states)) states[index] = initial
+      return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value }]
+    },
+  } : require(id))
   assert.equal(styles.length, 0, 'materialization does not execute apply side effects')
   const credentials = {
     describe: async refs => { calls.push(['describe', ...refs]); return { ok: true, value: Object.fromEntries(refs.map(ref => [ref, { configured: false, writable: true }])) } },
@@ -45,7 +56,7 @@ function harness(overrides = {}) {
       return {
         getSnapshot: () => config,
         subscribe: fn => { formListeners.add(fn); onForm = fn; return () => { formListeners.delete(fn); onForm = undefined } },
-        mutate: async (ops, revision) => { calls.push(['mutate', ops, revision]); return true },
+        mutate: async (ops, revision) => { calls.push(['mutate', ops, revision]); return mutationResult },
       }
     } },
     remote: { credentials, $on: (event, fn) => {
@@ -64,14 +75,31 @@ function harness(overrides = {}) {
     },
   })
   assert.deepEqual(registrations, ['plugins.bundle.config', 'plugins.row.config'])
-  const render = () => renderToStaticMarkup(createElement(Component, {
+  const props = () => ({
     view: 'page', // rc.4 bundle owner supplies no `form` prop.
     t: key => key,
     ...face,
     useConfig: select => select(face.hooks.config.getSnapshot()),
     useCredential: select => select(face.hooks.credential.getSnapshot()),
-  }))
-  return { face, calls, styles, render, setConfig: value => { config = value; for (const fn of formListeners) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
+  })
+  const tree = () => { cursor = 0; return Component(props()) }
+  const render = () => renderToStaticMarkup(interactive ? tree() : createElement(Component, props()))
+  const nodes = () => {
+    const result = []
+    const visit = node => {
+      if (!node || typeof node !== 'object') return
+      if (Array.isArray(node)) { node.forEach(visit); return }
+      result.push(node)
+      visit(node.props?.children)
+    }
+    visit(tree())
+    return result
+  }
+  const field = name => nodes().find(node => node.props?.name === name)
+  const button = label => nodes().find(node => node.type === 'button' && node.props.children === label)
+  const change = (name, value) => field(name).props.onChange({ target: { value } })
+  const submit = async () => { nodes().find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); await tick() }
+  return { face, calls, styles, render, field, button, change, submit, refuse: () => { mutationResult = false },  setConfig: value => { config = value; for (const fn of formListeners) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
 }
 
 test('bundle page without owner form renders live configuration and preserves write revision', async () => {
@@ -169,4 +197,107 @@ test('credential source fences stale requests and late answers after disposal', 
   assert.equal(updates, 1)
   app.face.describeCredential('AFTER_DISPOSAL')
   assert.equal(pending.length, 3)
+})
+
+test('protocol switching preserves both drafts and saves them atomically without clearing hidden values', async () => {
+  const app = harness({}, true)
+  app.change('endpoint', 'https://alpha.test/search')
+  app.change('protocol', 'deepseek-search-api')
+  assert.equal(app.field('endpoint'), undefined)
+  assert.equal(app.field('timeoutMs'), undefined, 'Alpha limits are not advertised for the official DeepSeek adapter')
+  assert.equal(app.field('deepseekEndpoint').props.value, 'https://api.deepseek.com/v1/tools')
+  assert.equal(app.field('deepseekCount').props.max, 50)
+  app.change('deepseekEndpoint', 'https://deepseek.test/v1/tools')
+  app.change('deepseekCount', '25')
+  app.change('protocol', 'codex-alpha')
+  assert.equal(app.field('endpoint').props.value, 'https://alpha.test/search')
+  app.change('protocol', 'deepseek-search-api')
+  assert.equal(app.field('deepseekCount').props.value, '25')
+  await app.submit()
+  const write = app.calls.find(call => call[0] === 'mutate')
+  assert.equal(write[2], 7)
+  const values = Object.fromEntries(write[1].map(op => [op.path[0], op.value]))
+  assert.deepEqual(values, { protocol: 'deepseek-search-api', endpoint: 'https://alpha.test/search', deepseekEndpoint: 'https://deepseek.test/v1/tools', deepseekCount: 25 })
+  app.dispose()
+})
+
+test('CIDR shortcut is draft-only, merges ranges, and saves a multiline array with fetch limits', async () => {
+  const app = harness({}, true)
+  app.change('fetchAllowedCidrs', ' 10.0.0.0/8\n\n198.18.0.0/15 ')
+  app.button('cidrPreset').props.onClick()
+  app.button('cidrPreset').props.onClick()
+  assert.equal(app.calls.some(call => call[0] === 'mutate'), false)
+  assert.equal(app.field('fetchAllowedCidrs').props.value, '10.0.0.0/8\n198.18.0.0/15\n192.168.96.0/20')
+  app.change('fetchTimeoutMs', '45000')
+  await app.submit()
+  const ops = app.calls.find(call => call[0] === 'mutate')[1]
+  assert.deepEqual(JSON.parse(JSON.stringify(ops)), [
+    { op: 'set', path: ['fetchAllowedCidrs'], value: ['10.0.0.0/8', '198.18.0.0/15', '192.168.96.0/20'] },
+    { op: 'set', path: ['fetchTimeoutMs'], value: 45000 },
+  ])
+  app.dispose()
+})
+
+test('selected protocol credential uses official credential writes and clears plaintext on switching', async () => {
+  const app = harness({}, true)
+  await tick()
+  app.change('key', 'alpha-secret')
+  app.change('protocol', 'deepseek-search-api')
+  await tick()
+  assert.equal(app.face.hooks.credential.getSnapshot().ref, 'DEEPSEEK_API_KEY')
+  assert.equal(app.field('key').props.value, '')
+  app.change('deepseekCredentialRef', 'DEEPSEEK_CUSTOM')
+  await tick()
+  app.change('key', 'deepseek-secret')
+  await app.button('keySave').props.onClick()
+  await tick()
+  assert.ok(app.calls.some(call => call[0] === 'set' && call[1] === 'DEEPSEEK_CUSTOM' && call[2] === 'deepseek-secret'))
+  assert.equal(app.field('key').props.value, '')
+  app.change('protocol', 'codex-alpha')
+  assert.equal(app.field('key').props.value, '')
+  assert.equal(app.calls.some(call => call[0] === 'mutate'), false)
+  app.dispose()
+})
+
+test('save validation, refusal, conflict discard and reset use real action handlers', async () => {
+  const app = harness({}, true)
+  app.change('protocol', 'deepseek-search-api')
+  app.change('deepseekCount', '51')
+  await app.submit()
+  assert.match(app.render(), /invalid/)
+  assert.equal(app.calls.some(call => call[0] === 'mutate'), false)
+  app.change('deepseekCount', '20')
+  app.refuse()
+  await app.submit()
+  assert.match(app.render(), /failed/)
+  assert.equal(app.field('deepseekCount').props.value, '20', 'rejected save retains the draft')
+  app.setConfig({ status: 'ready', value: { protocol: 'deepseek-search-api', deepseekCount: 30 }, revision: 8, writable: true })
+  assert.equal(app.button('save').props.disabled, true)
+  assert.equal(app.button('reset').props.disabled, true)
+  const writes = app.calls.filter(call => call[0] === 'mutate').length
+  await app.submit()
+  assert.equal(app.calls.filter(call => call[0] === 'mutate').length, writes)
+  app.button('discard').props.onClick()
+  assert.equal(app.field('deepseekCount').props.value, '30')
+  assert.doesNotMatch(app.render(), /role="alert"/)
+  await app.button('reset').props.onClick()
+  await tick()
+  const reset = app.calls.filter(call => call[0] === 'mutate').at(-1)
+  assert.equal(reset[2], 8)
+  assert.ok(reset[1].every(op => op.op === 'unset'))
+  for (const field of ['protocol', 'endpoint', 'deepseekEndpoint', 'deepseekCredentialRef', 'deepseekCount', 'fetchAllowedCidrs', 'fetchTimeoutMs', 'fetchMaxResponseBytes', 'fetchMaxContentChars']) {
+    assert.ok(reset[1].some(op => op.path[0] === field))
+  }
+  app.dispose()
+})
+
+test('saved protocol chooses its credential reference on host updates', async () => {
+  const app = harness()
+  app.setConfig({ status: 'ready', value: { protocol: 'deepseek-search-api' }, revision: 8, writable: true })
+  await tick()
+  assert.equal(app.face.hooks.credential.getSnapshot().ref, 'DEEPSEEK_API_KEY')
+  app.setConfig({ status: 'ready', value: { protocol: 'deepseek-search-api', deepseekCredentialRef: 'CUSTOM_REF' }, revision: 9, writable: true })
+  await tick()
+  assert.equal(app.face.hooks.credential.getSnapshot().ref, 'CUSTOM_REF')
+  app.dispose()
 })

@@ -4,7 +4,8 @@ import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-settings'
 import { WebError, type WebSearchProvider, type WebSearchRequest, type WebSearchResult } from '@deepseek-ai/dsh-web'
 import type { Config } from './index.js'
-import { CodexSearchProvider, type AlphaSearchConfig } from './provider.js'
+import type { AlphaSearchConfig } from './provider.js'
+import { searchProtocols } from './protocols.js'
 
 function fail(message: string): never {
   throw new WebError(`Web search: ${message}`, 'CODEX_CONFIGURATION_ERROR')
@@ -70,8 +71,8 @@ export class ConfiguredSearchProvider implements WebSearchProvider {
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
     signal?.throwIfAborted()
-    const resolved = await this.resolve()
+    const provider = await searchProtocols[this.config.protocol.get()](this.ctx, this.config, () => this.resolve())
     signal?.throwIfAborted()
-    return new CodexSearchProvider(resolved).search(request, signal)
+    return provider.search(request, signal)
   }
 }

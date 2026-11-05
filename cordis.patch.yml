@@ -2,7 +2,7 @@
 - id: web
   config:
     searchProvider: codex
-    fetchProvider: http
+    fetchProvider: search-http
 
 - insert:
     - id: dsh-search-plugin

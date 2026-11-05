@@ -6,16 +6,22 @@ import type { SearchFace } from './index.js'
 import type { LocaleKey } from './locales.js'
 
 type Props = PropsRuntime<'plugins.bundle.config' | 'plugins.row.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
-const fields = ['authMode', 'openaiProvider', 'credentialRef', 'endpoint', 'timeoutMs', 'maxResponseBytes', 'maxAnswerChars'] as const
-type Field = typeof fields[number]
+const defaults = { protocol: 'codex-alpha', authMode: 'openai', openaiProvider: 'openai', credentialRef: 'DSH_CODEX_API_KEY', endpoint: '', timeoutMs: '60000', maxResponseBytes: '2000000', maxAnswerChars: '16000', deepseekEndpoint: 'https://api.deepseek.com/v1/tools', deepseekCredentialRef: 'DEEPSEEK_API_KEY', deepseekCount: '10', fetchAllowedCidrs: '', fetchTimeoutMs: '30000', fetchMaxResponseBytes: '5000000', fetchMaxContentChars: '100000' }
+type Field = keyof typeof defaults
 type Values = Record<Field, string>
-const defaults: Values = { authMode: 'openai', openaiProvider: 'openai', credentialRef: 'DSH_CODEX_API_KEY', endpoint: '', timeoutMs: '60000', maxResponseBytes: '2000000', maxAnswerChars: '16000' }
-const numeric = new Set<Field>(['timeoutMs', 'maxResponseBytes', 'maxAnswerChars'])
+const fields = Object.keys(defaults) as Field[]
+const alphaLimits: Field[] = ['timeoutMs', 'maxResponseBytes', 'maxAnswerChars']
+const fetchLimits: Field[] = ['fetchTimeoutMs', 'fetchMaxResponseBytes', 'fetchMaxContentChars']
+const numeric = new Set<Field>([...alphaLimits, ...fetchLimits, 'deepseekCount'])
+const cidrsOf = (text: string) => text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
 function valuesOf(value: Record<string, unknown>): Values {
-  return Object.fromEntries(fields.map(field => [field, String(value[field] ?? defaults[field])])) as Values
+  return Object.fromEntries(fields.map(field => [field, field === 'fetchAllowedCidrs' ? (value[field] as string[] | undefined)?.join('\n') ?? '' : String(value[field] ?? defaults[field])])) as Values
+}
+function validEndpoint(value: string) {
+  try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.hash } catch { return false }
 }
 
-/** Render the owner-supplied form with a revision-fenced, local draft. */
+/** Render a revision-fenced draft, retaining both protocols when the selection changes. */
 export function SearchConfig(props: Props) {
   const { t } = props
   const state = props.useConfig(snapshot => snapshot)
@@ -30,48 +36,44 @@ export function SearchConfig(props: Props) {
   if (state.status !== 'ready' || !state.value) return <p role="status">{t(state.status === 'loading' ? 'loading' : 'unavailable')}</p>
   const accepted = valuesOf(state.value)
   const values = draft?.values ?? accepted
-  const keyText = key?.ref === values.credentialRef ? key.text : ''
+  const deepseek = values.protocol === 'deepseek-search-api'
+  const independent = deepseek || values.authMode === 'credential'
+  const refField = deepseek ? 'deepseekCredentialRef' : 'credentialRef'
+  const ref = values[refField]
+  const keyText = key?.ref === ref ? key.text : ''
   const conflict = draft !== null && draft.revision !== state.revision
   const disabled = !state.writable || busy
-  const independent = values.authMode === 'credential'
-  const visibleFields = fields.filter(field => numeric.has(field) || (independent ? field === 'credentialRef' || field === 'endpoint' : field === 'openaiProvider'))
-  const validRef = /^[A-Za-z_][A-Za-z0-9_]*$/.test(values.credentialRef)
-  const credentialCurrent = credential.ref === values.credentialRef
+  const validRef = /^[A-Za-z_][A-Za-z0-9_]*$/.test(ref)
+  const credentialCurrent = credential.ref === ref
   const info = credentialCurrent ? credential.info : undefined
-  const credentialWritable = info?.writable === true && !keyBusy
+  const credentialWritable = validRef && info?.writable === true && !keyBusy
   const edit = (field: Field, value: string) => {
-    setDraft({ values: { ...values, [field]: value }, revision: draft ? draft.revision : state.revision })
-    setMessage(null)
-    if (field === 'authMode') { setKey(null); setKeyMessage(null) }
-    if (field === 'credentialRef') {
-      setKey(null); setKeyMessage(null); props.describeCredential(value)
+    const next = { ...values, [field]: value }
+    setDraft({ values: next, revision: draft ? draft.revision : state.revision }); setMessage(null)
+    if (field === 'protocol' || field === 'authMode' || field === refField) {
+      setKey(null); setKeyMessage(null)
+      props.describeCredential(next.protocol === 'deepseek-search-api' ? next.deepseekCredentialRef : next.credentialRef)
     }
   }
   const save = async (reset: boolean) => {
     if (conflict) { setMessage('conflict'); return }
     if (!reset) {
-      let valid = fields.filter(field => numeric.has(field)).every(field => Number.isSafeInteger(Number(values[field])) && Number(values[field]) > 0)
-      if (independent) {
-        try {
-          const endpoint = new URL(values.endpoint)
-          valid &&= validRef && ['http:', 'https:'].includes(endpoint.protocol) && !endpoint.username && !endpoint.password && !endpoint.hash
-        } catch { valid = false }
-      } else valid &&= Boolean(values.openaiProvider.trim())
+      const activeNumeric = [...fetchLimits, ...(deepseek ? ['deepseekCount' as const] : alphaLimits)]
+      let valid = activeNumeric.every(field => Number.isSafeInteger(Number(values[field])) && Number(values[field]) > 0)
+      valid &&= deepseek ? Number(values.deepseekCount) <= 50 && validRef && validEndpoint(values.deepseekEndpoint) : independent ? validRef && validEndpoint(values.endpoint) : Boolean(values.openaiProvider.trim())
       if (!valid) { setMessage('invalid'); return }
     }
-    const savedValues = independent ? values : { ...values, endpoint: '' }
-    const savedFields: Field[] = ['authMode', ...visibleFields, ...(!independent ? ['endpoint' as const] : [])]
+    // Include changed fields from both protocol drafts; hidden accepted values are never cleared.
     const ops: SettingsPathOpView[] = reset
       ? fields.map(field => ({ op: 'unset', path: [field] }))
-      : savedFields.filter(field => savedValues[field] !== accepted[field]).map(field => ({ op: 'set', path: [field], value: numeric.has(field) ? Number(savedValues[field]) : savedValues[field] }))
+      : fields.filter(field => values[field] !== accepted[field]).map(field => ({ op: 'set', path: [field], value: numeric.has(field) ? Number(values[field]) : field === 'fetchAllowedCidrs' ? cidrsOf(values[field]) : values[field] }))
     setBusy(true); setMessage(null)
     try {
-      if (await props.mutateConfig(ops, draft ? draft.revision : state.revision)) { setDraft(null); setMessage('saved') }
+      if (await props.mutateConfig(ops, draft ? draft.revision : state.revision)) { setDraft(null); setMessage('saved'); setKey(null) }
       else setMessage('failed')
     } catch { setMessage('failed') } finally { setBusy(false) }
   }
   const writeKey = async (remove: boolean) => {
-    const ref = values.credentialRef
     setKeyBusy(true); setKeyMessage(null)
     try {
       if (remove) await props.removeCredential(ref)
@@ -79,31 +81,38 @@ export function SearchConfig(props: Props) {
       setKey(null); setKeyMessage('keySaved')
     } catch { setKeyMessage('keyFailed') } finally { setKeyBusy(false) }
   }
+  const input = (field: Field) => <label key={field}><span>{t(field)}</span><input name={field} type={numeric.has(field) ? 'number' : 'text'} min={numeric.has(field) ? 1 : undefined} max={field === 'deepseekCount' ? 50 : undefined} step={numeric.has(field) ? 1 : undefined} value={values[field]} onChange={event => edit(field, event.target.value)} disabled={field === refField && keyBusy} /></label>
   return <div className="dsh-search-config">
-    <p className="dsh-search-hint">{t('inherit')}</p>
-    <p className="dsh-search-hint">{t('trust')}</p>
     <form onSubmit={event => { event.preventDefault(); void save(false) }}>
+      <fieldset disabled={disabled || keyBusy}>
+        <legend>{t('searchSettings')}</legend>
+        <label><span>{t('protocol')}</span><select name="protocol" value={values.protocol} onChange={event => edit('protocol', event.target.value)}><option value="codex-alpha">{t('codexAlpha')}</option><option value="deepseek-search-api">{t('deepseekSearchApi')}</option></select></label>
+        {!deepseek && <label><span>{t('authMode')}</span><select name="authMode" value={values.authMode} onChange={event => edit('authMode', event.target.value)}><option value="openai">{t('openai')}</option><option value="credential">{t('credential')}</option></select></label>}
+        {(deepseek ? ['deepseekEndpoint', 'deepseekCredentialRef', 'deepseekCount'] as Field[] : independent ? ['endpoint', 'credentialRef'] as Field[] : ['openaiProvider'] as Field[]).map(input)}
+      </fieldset>
+      <p className="dsh-search-hint">{t(deepseek ? 'deepseekHint' : 'inherit')}</p>
+      <p className="dsh-search-hint">{t('trust')}</p>
+      {!deepseek && <fieldset disabled={disabled}><legend>{t('searchLimits')}</legend>{alphaLimits.map(input)}</fieldset>}
       <fieldset disabled={disabled}>
-        <label><span>{t('authMode')}</span><select value={values.authMode} onChange={event => edit('authMode', event.target.value)}>
-          <option value="openai">{t('openai')}</option><option value="credential">{t('credential')}</option>
-        </select></label>
-        {visibleFields.map(field => <label key={field}>
-          <span>{t(field)}</span><input type={numeric.has(field) ? 'number' : 'text'} min={numeric.has(field) ? 1 : undefined} step={numeric.has(field) ? 1 : undefined}
-            value={values[field]} onChange={event => edit(field, event.target.value)} disabled={field === 'credentialRef' && keyBusy} />
-        </label>)}
+        <legend>{t('fetchSettings')}</legend>
+        <label className="dsh-search-wide"><span>{t('fetchAllowedCidrs')}</span><textarea name="fetchAllowedCidrs" rows={4} value={values.fetchAllowedCidrs} onChange={event => edit('fetchAllowedCidrs', event.target.value)} aria-describedby="dsh-search-cidr-hint" /></label>
+        <p id="dsh-search-cidr-hint" className="dsh-search-hint dsh-search-wide">{t('cidrHint')}</p>
+        <button type="button" className="dsh-search-wide" onClick={() => edit('fetchAllowedCidrs', [...new Set([...cidrsOf(values.fetchAllowedCidrs), '198.18.0.0/15', '192.168.96.0/20'])].join('\n'))}>{t('cidrPreset')}</button>
+        {fetchLimits.map(input)}
       </fieldset>
       {!state.writable && <p role="status">{t('readOnly')}</p>}
       {conflict && <p role="alert">{t('conflict')}</p>}
       {message && <p role="status">{t(message)}</p>}
       <div className="dsh-search-actions">
-        <button type="submit" disabled={disabled || conflict || !draft}>{t(busy ? 'saving' : 'save')}</button>
-        <button type="button" disabled={disabled || conflict} onClick={() => { void save(true) }}>{t('reset')}</button>
-        <button type="button" disabled={busy || !draft} onClick={() => { setDraft(null); setMessage(null); setKey(null); props.describeCredential(accepted.credentialRef) }}>{t('discard')}</button>
+        <button type="submit" disabled={disabled || keyBusy || conflict || !draft}>{t(busy ? 'saving' : 'save')}</button>
+        <button type="button" disabled={disabled || keyBusy || conflict} onClick={() => { void save(true) }}>{t('reset')}</button>
+        <button type="button" disabled={busy || keyBusy || !draft} onClick={() => { setDraft(null); setMessage(null); setKey(null); setKeyMessage(null); props.describeCredential(accepted.protocol === 'deepseek-search-api' ? accepted.deepseekCredentialRef : accepted.credentialRef) }}>{t('discard')}</button>
       </div>
     </form>
-    {values.authMode === 'credential' && <section className="dsh-search-secret">
-      <label><span>{t('key')}</span><input type="password" autoComplete="new-password" value={keyText} disabled={!credentialWritable}
-        onChange={event => { setKey({ ref: values.credentialRef, text: event.target.value }); setKeyMessage(null) }} /></label>
+    {independent && <section className="dsh-search-secret">
+      <h3>{t('credentials')}</h3>
+      <p className="dsh-search-hint">{t('credentialTarget')}: <code>{ref}</code></p>
+      <label><span>{t('key')}</span><input name="key" type="password" autoComplete="new-password" value={keyText} disabled={!credentialWritable} onChange={event => { setKey({ ref, text: event.target.value }); setKeyMessage(null) }} /></label>
       <p className="dsh-search-hint">{t('keyHint')}</p>
       <p role="status">{t(!validRef ? 'invalidRef' : credentialCurrent && credential.error ? 'keyFailed' : !info ? 'keyLoading' : info.configured ? 'keySet' : 'keyUnset')}</p>
       {info && !info.writable && <p>{t('keyReadOnly')}</p>}
@@ -111,7 +120,7 @@ export function SearchConfig(props: Props) {
       <div className="dsh-search-actions">
         <button type="button" disabled={!credentialWritable || !keyText.trim()} onClick={() => { void writeKey(false) }}>{t('keySave')}</button>
         <button type="button" disabled={!credentialWritable || !info?.configured} onClick={() => { void writeKey(true) }}>{t('keyRemove')}</button>
-        <button type="button" disabled={!validRef || keyBusy} onClick={() => props.describeCredential(values.credentialRef)}>{t('keyRefresh')}</button>
+        <button type="button" disabled={!validRef || keyBusy} onClick={() => props.describeCredential(ref)}>{t('keyRefresh')}</button>
       </div>
     </section>}
   </div>
