@@ -1,6 +1,6 @@
 /** Typed copy for the search configuration page. */
 export const en = {
-  title: 'Shared web enhancement UI', description: 'Shared configuration and status for web search and fetch providers.',
+  title: 'Web enhancement', description: 'Shared configuration and status for web search and fetch providers.',
   overview: 'Configuration status', sharedHint: 'This shared interface stays available when the search or fetch provider row is disabled. Configure each provider from its own row.',
   effectiveSearchProvider: 'Effective web.searchProvider', effectiveFetchProvider: 'Effective web.fetchProvider',
   searchRow: 'Search provider row', fetchRow: 'Fetch provider row', rowEnabled: 'Enabled', rowDisabled: 'Disabled', rowUnavailable: 'Row is not present in the Host inventory.',
@@ -33,7 +33,7 @@ export const en = {
 } as const
 export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
-  title: '联网增强界面', description: '搜索增强与 Fetch 增强的共享配置和状态界面。',
+  title: '联网增强', description: '搜索增强与 Fetch 增强的共享配置和状态界面。',
   overview: '配置状态概览', sharedHint: '搜索或 Fetch 提供方行停用后，此共享界面仍可使用。各提供方的配置请从对应行打开。',
   effectiveSearchProvider: '实际生效的 web.searchProvider', effectiveFetchProvider: '实际生效的 web.fetchProvider',
   searchRow: '搜索提供方行', fetchRow: 'Fetch 提供方行', rowEnabled: '已启用', rowDisabled: '已停用', rowUnavailable: '主机清单中不存在此行。',

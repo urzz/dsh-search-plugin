@@ -16,8 +16,8 @@ const basePatchURL = new URL('./fixtures/bundle-base.patch.yml', import.meta.url
 
 test('official metadata resolver reads exported titles and descriptions without executing the plugin', () => {
   const meta = readPluginMeta('dsh-search-plugin', import.meta.url)
-  assert.equal(meta.title.zh, '联网增强界面')
-  assert.equal(meta.title.en, 'Shared web enhancement UI')
+  assert.equal(meta.title.zh, '联网增强')
+  assert.equal(meta.title.en, 'Web enhancement')
   for (const [component, title] of [['search', '搜索增强'], ['fetch', 'Fetch增强']]) {
     const metadata = readPluginMeta(`dsh-search-plugin/${component}`, import.meta.url)
     assert.equal(metadata.title.zh, title)
