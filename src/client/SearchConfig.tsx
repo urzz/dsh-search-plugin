@@ -5,7 +5,7 @@ import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SearchFace } from './index.js'
 import type { LocaleKey } from './locales.js'
 
-export type Props = PropsRuntime<'plugins.bundle.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
+export type Props = PropsRuntime<'plugins.row.config'> & PropsLocale<'searchPlugin'> & InjectFace<SearchFace>
 const defaults = { protocol: 'codex-alpha', authMode: 'openai', openaiProvider: 'openai', credentialRef: 'DSH_CODEX_API_KEY', endpoint: '', timeoutMs: '60000', maxResponseBytes: '2000000', maxAnswerChars: '16000', deepseekEndpoint: 'https://api.deepseek.com/v1/tools', deepseekCredentialRef: 'DEEPSEEK_API_KEY', deepseekCount: '10' }
 type Field = keyof typeof defaults
 type Values = Record<Field, string>

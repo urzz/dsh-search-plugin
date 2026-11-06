@@ -21,6 +21,7 @@ function harness(overrides = {}, interactive = false) {
   let face
   let Component
   const registrations = []
+  const components = []
   let config = { status: 'ready', value: { authMode: 'credential', credentialRef: 'DSH_CODEX_API_KEY', endpoint: 'https://search.example.test/v1/alpha/search' }, revision: 7, writable: true }
   const formListeners = new Set()
   let onCredential
@@ -63,20 +64,22 @@ function harness(overrides = {}, interactive = false) {
       assert.equal(event, 'credentials/reference-updated'); onCredential = fn; return () => { onCredential = undefined }
     } },
     slots: {
-      inject: (slot, fn) => { assert.equal(slot, 'plugins.bundle.config'); return fn() },
+      inject: (slot, fn) => { assert.equal(slot, 'plugins.row.config'); return fn() },
       register: (options, registeredComponent) => {
-        assert.equal(options.key, 'dsh-search-plugin')
+        assert.equal(options.key, ['dsh-search-plugin#dsh-search-plugin', 'dsh-search-plugin#dsh-search-fetch'][registrations.length])
         registrations.push(options.name)
+        components.push(registeredComponent)
         assert.equal(typeof registeredComponent, 'function')
-        Component = registeredComponent
+        const previous = Component
+        Component = previous ? props => [createElement(previous, { ...props, key: 'search' }), createElement(registeredComponent, { ...props, key: 'fetch' })] : registeredComponent
         face = options.inject()
         return () => calls.push(['slot-disposed'])
       },
     },
   })
-  assert.deepEqual(registrations, ['plugins.bundle.config'])
+  assert.deepEqual(registrations, ['plugins.row.config', 'plugins.row.config'])
   const props = () => ({
-    view: 'page', // rc.4 bundle owner supplies no `form` prop.
+    view: 'page', // Each row editor obtains the preserved shared ConfigForms entry.
     t: key => key,
     ...face,
     useConfig: select => select(face.hooks.config.getSnapshot()),
@@ -112,10 +115,19 @@ function harness(overrides = {}, interactive = false) {
   const button = (label, section = 'searchSettings') => (label.startsWith('key') ? nodes() : nodes(section)).find(node => node.type === 'button' && node.props.children === label)
   const change = (name, value) => field(name).props.onChange({ target: { value } })
   const submit = async (section = 'searchSettings') => { nodes(section).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); await tick() }
-  return { face, calls, styles, render, field, button, change, submit, refuse: () => { mutationResult = false },  setConfig: value => { config = value; for (const fn of formListeners) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
+  return { face, calls, styles, render, renderComponent: index => renderToStaticMarkup(createElement(components[index], props())), field, button, change, submit, refuse: () => { mutationResult = false },  setConfig: value => { config = value; for (const fn of formListeners) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
 }
 
-test('bundle page without owner form renders live configuration and preserves write revision', async () => {
+test('each component row renders only its own editor and no outer bundle entry is registered', () => {
+  const app = harness()
+  assert.match(app.renderComponent(0), /aria-label="searchSettings"/)
+  assert.doesNotMatch(app.renderComponent(0), /aria-label="fetchSettings"/)
+  assert.match(app.renderComponent(1), /aria-label="fetchSettings"/)
+  assert.doesNotMatch(app.renderComponent(1), /aria-label="searchSettings"/)
+  app.dispose()
+})
+
+test('component editors use preserved live configuration and write revision without a bundle form', async () => {
   const app = harness()
   assert.match(app.render(), /value="https:\/\/search\.example\.test\/v1\/alpha\/search"/)
   assert.doesNotMatch(app.render(), /unavailable/)

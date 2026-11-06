@@ -6,8 +6,10 @@
 
 - insert:
     - id: dsh-search-plugin
-      name: dsh-search-plugin
+      name: dsh-search-plugin/search
       config:
         authMode: !!js process.env.DSH_CODEX_AUTH_MODE || 'openai'
         endpoint: !!js process.env.DSH_CODEX_ENDPOINT
         apiKey: !!js process.env.DSH_CODEX_API_KEY
+    - id: dsh-search-fetch
+      name: dsh-search-plugin/fetch

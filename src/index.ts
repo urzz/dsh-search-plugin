@@ -46,15 +46,29 @@ export const Config = Schema.object({
   maxAnswerChars: Schema.number().step(1).min(1).default(16000).volatile(),
 })
 
-/** Register the provider; Cordis owns its registration and optional settings policy. */
-export function apply(ctx: Context, config: Config): void {
+declare module '@deepseek-ai/cordis' {
+  interface Context { networkEnhancementConfig: Config }
+}
+
+/** Shared configuration stays on the original entry so upgrades retain saved values. */
+export function applySearch(ctx: Context, config: Config): void {
+  ctx.provide('networkEnhancementConfig', config)
   ctx.web.registerSearchProvider(new ConfiguredSearchProvider(ctx, config))
+  ctx.inject(['settings'], child => {
+    child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
+  })
+}
+
+export function applyFetch(ctx: Context, config: Config): void {
   ctx.web.registerFetchProvider(new ConfiguredFetchProvider(() => ({
     allowedCidrs: [...config.fetchAllowedCidrs.get()], timeoutMs: config.fetchTimeoutMs.get(),
     maxResponseBytes: config.fetchMaxResponseBytes.get(), maxContentChars: config.fetchMaxContentChars.get(),
     maxRedirects: 5, userAgent: 'dsh-search-plugin',
   })))
-  ctx.inject(['settings'], child => {
-    child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
-  })
+}
+
+/** Legacy direct module loading continues to register both providers. */
+export function apply(ctx: Context, config: Config): void {
+  applySearch(ctx, config)
+  applyFetch(ctx, config)
 }

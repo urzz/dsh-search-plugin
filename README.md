@@ -1,4 +1,4 @@
-# 联网搜索与网页抓取
+# 联网增强
 
 面向 **DSH 0.2.1-rc.4** 的 TypeScript ESM 插件。复用官方 `web_search`、`web_fetch` 工具，通过实时配置选择搜索协议，增强本机 HTTP 抓取的地址授权。设计参考 [dsh-tool-web-enhanced](https://github.com/Yurzi/dsh-tool-web-enhanced)，本仓库实现仅覆盖 Alpha Search、DeepSeek Search API 与本机抓取。
 
@@ -17,9 +17,15 @@ dsh plugin --profile <name> add dsh-search-plugin
 
 通过 npm 发布版本安装和更新；修复不直接覆盖本机已安装插件。更新已经安装的包后需要重启 DSH profile，再刷新网页。仅构建本仓库不会更新已经运行的 GUI。bundle 选择 `searchProvider: codex`、`fetchProvider: search-http`，标准 base 需已有 web 服务与工具消费者；旧 `http` provider 保留，其配置不被修改，但默认路由改由本插件接管。
 
+## 发布
+
+除首次发布需要本地初始化外，后续版本均通过 GitHub Actions 发布。更新包版本、完成 `pnpm check` 后，提交并推送对应的 `v<版本号>` 标签，触发 `.github/workflows/publish.yml`。工作流校验标签与包版本一致，再通过 npm Trusted Publishing 发布；不要在本地执行 `npm publish` 或为后续发布要求本地 npm 登录。
+
 ## 配置 UI
 
-进入 **插件 → 联网搜索 → 配置**。仅保留插件包这一处配置入口，内部组件行不重复提供相同表单。
+进入 **插件 → 联网增强 → 组件**，分别打开 **搜索增强** 或 **Fetch 增强** 的配置。外层插件包不再展示表单，每个组件只展示自己的配置。
+
+升级保留原 `dsh-search-plugin` 配置 ID，搜索和 Fetch 已保存的值无需迁移。Fetch 组件使用搜索组件提供的共享配置服务，因此需要搜索组件保持启用；可以单独关闭 Fetch。直接在 YAML 中引用旧根模块的用法仍同时注册两种能力。
 
 - 搜索协议选择器动态显示对应协议字段；切换协议保留各自配置，保存后下一次操作生效。
 - Alpha 可复用 OpenAI provider，或使用独立端点与凭据。仅 Alpha 显示超时、响应和答案上限。

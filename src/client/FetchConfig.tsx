@@ -19,6 +19,7 @@ export function FetchConfig(props: Props) {
   const [draft, setDraft] = useState<{ values: Values; revision: number | undefined } | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<LocaleKey | null>(null)
+  if (props.view === 'summary') return t('fetchSettings')
   if (state.status !== 'ready' || !state.value) return <p role="status">{t(state.status === 'loading' ? 'loading' : 'unavailable')}</p>
   const accepted = valuesOf(state.value)
   const values = draft?.values ?? accepted

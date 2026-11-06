@@ -8,7 +8,8 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import { BundleConfig } from './BundleConfig.js'
+import { SearchConfig } from './SearchConfig.js'
+import { FetchConfig } from './FetchConfig.js'
 import { en, zh, type LocaleKey } from './locales.js'
 import css from './style.css'
 
@@ -35,7 +36,7 @@ export interface SearchFace {
 
 export const inject = ['slots', 'locale', 'remote', 'remote.credentials', 'configForms']
 
-/** Register the bundle's form and dispose styles and credential observers with its fiber. */
+/** Register each component's editor and dispose observers with the client fiber. */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register('searchPlugin', { en, zh }))
   ctx.effect(() => {
@@ -96,7 +97,9 @@ export function apply(ctx: Context): void {
       describeCredential(ref)
     },
   }
-  ctx.effect(() => ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
-    name: 'plugins.bundle.config', key: 'dsh-search-plugin', locale: 'searchPlugin', inject: () => face,
-  }, BundleConfig)))
+  for (const [rowId, Component] of [['dsh-search-plugin', SearchConfig], ['dsh-search-fetch', FetchConfig]] as const) {
+    ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+      name: 'plugins.row.config', key: `dsh-search-plugin#${rowId}`, locale: 'searchPlugin', inject: () => face,
+    }, Component)))
+  }
 }

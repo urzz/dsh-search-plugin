@@ -1,6 +1,6 @@
 {
   "name": "dsh-search-plugin",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/urzz/dsh-search-plugin.git"
@@ -17,12 +17,24 @@
     "./client": "./lib/client.js",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./search": {
+      "types": "./lib/types/search-component.d.ts",
+      "default": "./lib/search-component.js"
+    },
+    "./search/locale/*.json": "./locale/search/*.json",
+    "./search/icon": "./icon.svg",
+    "./fetch": {
+      "types": "./lib/types/fetch-component.d.ts",
+      "default": "./lib/fetch-component.js"
+    },
+    "./fetch/locale/*.json": "./locale/fetch/*.json",
+    "./fetch/icon": "./icon.svg"
   },
   "files": [
     "lib",
     "icon.svg",
-    "locale/*.json",
+    "locale/**/*.json",
     "cordis.patch.yml",
     "README.md"
   ],

@@ -1,6 +1,6 @@
 /** Typed copy for the search configuration page. */
 export const en = {
-  title: 'Web search', description: 'Give agents access to information from the web to inform their analysis and decisions.',
+  title: 'Web enhancement', description: 'Give agents access to information from the web to inform their analysis and decisions.',
   protocol: 'Search protocol', codexAlpha: 'Codex Alpha', deepseekSearchApi: 'DeepSeek Search API',
   searchSettings: 'Search service', searchLimits: 'Alpha search limits', fetchSettings: 'Web fetch', credentials: 'Credential management', credentialTarget: 'Selected credential reference',
   deepseekEndpoint: 'DeepSeek API base URL', deepseekCredentialRef: 'DeepSeek credential reference', deepseekCount: 'Search results (1–50)',
@@ -27,7 +27,7 @@ export const en = {
 } as const
 export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
-  title: '联网搜索', description: '将互联网作为智能体的信息来源，为分析与判断补充外部依据。',
+  title: '联网增强', description: '将互联网作为智能体的信息来源，为分析与判断补充外部依据。',
   protocol: '搜索协议', codexAlpha: 'Codex Alpha', deepseekSearchApi: 'DeepSeek Search API',
   searchSettings: '搜索服务', searchLimits: 'Alpha 搜索限制', fetchSettings: '网页抓取', credentials: '凭据管理', credentialTarget: '当前凭据引用',
   deepseekEndpoint: 'DeepSeek API 基础地址', deepseekCredentialRef: 'DeepSeek 凭据引用名', deepseekCount: '搜索结果数量（1–50）',
