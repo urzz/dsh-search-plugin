@@ -3,7 +3,7 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-settings'
 import { WebError, type WebSearchProvider, type WebSearchRequest, type WebSearchResult } from '@deepseek-ai/dsh-web'
-import type { Config } from './index.js'
+import type { Config } from './search-component.js'
 import type { AlphaSearchConfig } from './provider.js'
 import { searchProtocols } from './protocols.js'
 

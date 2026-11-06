@@ -34,7 +34,12 @@ export interface SearchFace {
   removeCredential: (ref: string) => Promise<void>
 }
 
-export const inject = ['slots', 'locale', 'remote', 'remote.credentials', 'configForms']
+export interface FetchFace {
+  hooks: { config: HostObservable<ConfigFormSnapshot<Record<string, unknown>>> }
+  mutateConfig: ConfigForm<Record<string, unknown>>['mutate']
+}
+
+export const inject = ['slots', 'locale', 'configForms']
 
 /** Register each component's editor and dispose observers with the client fiber. */
 export function apply(ctx: Context): void {
@@ -46,6 +51,18 @@ export function apply(ctx: Context): void {
     document.head.append(style)
     return () => style.remove()
   })
+  ctx.inject(['remote', 'remote.credentials'], registerSearch)
+  const form = ctx.configForms.get<Record<string, unknown>>('dsh-search-fetch')
+  const face: FetchFace = {
+    hooks: { config: { getSnapshot: () => form.getSnapshot(), subscribe: listener => form.subscribe(listener) } },
+    mutateConfig: (ops, expectedRevision) => form.mutate(ops, expectedRevision),
+  }
+  ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config', key: 'dsh-search-plugin#dsh-search-fetch', locale: 'searchPlugin', inject: () => face,
+  }, FetchConfig)))
+}
+
+function registerSearch(ctx: Context): void {
   let state: CredentialSnapshot = { ref: '', error: false }
   let sequence = 0
   let disposed = false
@@ -97,9 +114,7 @@ export function apply(ctx: Context): void {
       describeCredential(ref)
     },
   }
-  for (const [rowId, Component] of [['dsh-search-plugin', SearchConfig], ['dsh-search-fetch', FetchConfig]] as const) {
-    ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
-      name: 'plugins.row.config', key: `dsh-search-plugin#${rowId}`, locale: 'searchPlugin', inject: () => face,
-    }, Component)))
-  }
+  ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config', key: 'dsh-search-plugin#dsh-search-plugin', locale: 'searchPlugin', inject: () => face,
+  }, SearchConfig)))
 }

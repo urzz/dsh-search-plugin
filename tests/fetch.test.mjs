@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import dns from 'node:dns/promises'
 import Schema from '@deepseek-ai/schemastery'
-import { Config } from '../lib/index.js'
+import { Config } from '../lib/fetch-component.js'
 import { syncBuiltinESMExports } from 'node:module'
 import { ConfiguredFetchProvider, validateCidrs, resolveAllowedAddresses } from '../lib/fetch.js'
 

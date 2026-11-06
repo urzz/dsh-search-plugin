@@ -23,9 +23,29 @@ dsh plugin --profile <name> add dsh-search-plugin
 
 ## 配置 UI
 
-进入 **插件 → 联网增强 → 组件**，分别打开 **搜索增强** 或 **Fetch 增强** 的配置。外层插件包不再展示表单，每个组件只展示自己的配置。
+进入 **插件 → 联网增强 → 组件**，分别打开 **搜索增强** 或 **Fetch增强** 的配置。外层插件包不再展示表单，每个组件只展示自己的配置。
 
-升级保留原 `dsh-search-plugin` 配置 ID，搜索和 Fetch 已保存的值无需迁移。Fetch 组件使用搜索组件提供的共享配置服务，因此需要搜索组件保持启用；可以单独关闭 Fetch。直接在 YAML 中引用旧根模块的用法仍同时注册两种能力。
+两个组件各自注册 Provider、持有配置 schema 和 ConfigForms revision，仅依赖官方 `web` 服务，互不提供或消费运行服务。可以单独启用、停用、配置与重置，关闭搜索增强后 Fetch增强仍可抓取，反之亦然。关闭某组件后，该能力的已配置路由会报 Provider 缺失，不会静默切换到其他实现。
+
+| 组件 | 配置 entry ID | Provider | 配置范围 |
+| --- | --- | --- | --- |
+| 搜索增强 | `dsh-search-plugin` | `codex` | 搜索协议、端点、凭据引用、搜索限制 |
+| Fetch增强 | `dsh-search-fetch` | `search-http` | CIDR 授权、抓取超时、响应与正文限制 |
+
+### 从 0.2.3 及之前版本升级
+
+搜索配置 ID 不变。旧版保存在 `dsh-search-plugin.config` 下的四个 `fetch*` 字段，需要移至 `dsh-search-fetch.config`；也可先记录原值，升级后在 Fetch增强页面重新保存。未迁移时 Fetch 使用默认值（CIDR 默认为空，旧授权不会自动生效）。请在升级前保留原配置；插件不自动改写 profile，也不在运行时读取另一组件的配置。
+
+```yaml
+- id: dsh-search-fetch
+  config:
+    fetchAllowedCidrs: [198.18.0.0/15]
+    fetchTimeoutMs: 30000
+    fetchMaxResponseBytes: 5000000
+    fetchMaxContentChars: 100000
+```
+
+直接在 YAML 中引用旧根模块 `dsh-search-plugin` 的兼容入口仍支持原来的合并配置及两种能力，但其生命周期也是合并的。需要独立启停时，改为 bundle 使用的 `dsh-search-plugin/search` 和 `dsh-search-plugin/fetch` 两个入口，并按上表分配配置。
 
 - 搜索协议选择器动态显示对应协议字段；切换协议保留各自配置，保存后下一次操作生效。
 - Alpha 可复用 OpenAI provider，或使用独立端点与凭据。仅 Alpha 显示超时、响应和答案上限。

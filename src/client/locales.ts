@@ -29,7 +29,7 @@ export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
   title: '联网增强', description: '将互联网作为智能体的信息来源，为分析与判断补充外部依据。',
   protocol: '搜索协议', codexAlpha: 'Codex Alpha', deepseekSearchApi: 'DeepSeek Search API',
-  searchSettings: '搜索服务', searchLimits: 'Alpha 搜索限制', fetchSettings: '网页抓取', credentials: '凭据管理', credentialTarget: '当前凭据引用',
+  searchSettings: '搜索增强', searchLimits: 'Alpha 搜索限制', fetchSettings: 'Fetch增强', credentials: '凭据管理', credentialTarget: '当前凭据引用',
   deepseekEndpoint: 'DeepSeek API 基础地址', deepseekCredentialRef: 'DeepSeek 凭据引用名', deepseekCount: '搜索结果数量（1–50）',
   deepseekHint: '使用官方 DeepSeek Search API 适配器。API 基础地址默认为 https://api.deepseek.com/v1/tools，适配器自动追加 /search。Alpha 超时与响应限制不适用于此适配器。',
   fetchAllowedCidrs: '额外放行 CIDR 网段（每行一个）', fetchTimeoutMs: '抓取超时（毫秒）', fetchMaxResponseBytes: '抓取响应字节上限', fetchMaxContentChars: '抓取内容字符上限',

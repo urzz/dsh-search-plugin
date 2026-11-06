@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Fetch 增强",
-    "description": "支持 CIDR 网段授权的网页抓取增强，使用联网增强统一配置。"
+    "title": "Fetch增强",
+    "description": "独立配置与启停的网页抓取增强，支持 CIDR 网段授权。"
   }
 }

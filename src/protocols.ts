@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { DeepSeekSearchApiProvider } from '@deepseek-ai/dsh-web-deepseek-api'
 import type { WebSearchProvider } from '@deepseek-ai/dsh-web'
-import type { Config } from './index.js'
+import type { Config } from './search-component.js'
 import { CodexSearchProvider, type AlphaSearchConfig } from './provider.js'
 
 export type SearchProtocol = 'codex-alpha' | 'deepseek-search-api'

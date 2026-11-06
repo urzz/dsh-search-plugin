@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Fetch enhancement",
-    "description": "HTTP fetch with explicit CIDR authorization."
+    "description": "Independently configured HTTP fetch with explicit CIDR authorization."
   }
 }

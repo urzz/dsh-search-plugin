@@ -1,8 +1,11 @@
-/** Fetch edits share the host revision fence but never write search settings. */
+/** Fetch edits use their own entry and revision fence. */
 import { useState } from 'react'
 import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
-import type { Props } from './SearchConfig.js'
+import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { FetchFace } from './index.js'
 import type { LocaleKey } from './locales.js'
+
+type Props = PropsRuntime<'plugins.row.config'> & PropsLocale<'searchPlugin'> & InjectFace<FetchFace>
 
 const defaults = { fetchAllowedCidrs: '', fetchTimeoutMs: '30000', fetchMaxResponseBytes: '5000000', fetchMaxContentChars: '100000' }
 type Field = keyof typeof defaults

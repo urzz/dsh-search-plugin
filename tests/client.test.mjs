@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url)
 const code = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
 const tick = async () => { await Promise.resolve(); await Promise.resolve() }
 
-function harness(overrides = {}, interactive = false) {
+function harness(overrides = {}, interactive = false, withCredentials = true) {
   const states = []
   let cursor = 0
   let mutationResult = true
@@ -19,11 +19,14 @@ function harness(overrides = {}, interactive = false) {
   const cleanups = []
   const calls = []
   let face
-  let Component
   const registrations = []
   const components = []
-  let config = { status: 'ready', value: { authMode: 'credential', credentialRef: 'DSH_CODEX_API_KEY', endpoint: 'https://search.example.test/v1/alpha/search' }, revision: 7, writable: true }
-  const formListeners = new Set()
+  const faces = []
+  const configs = {
+    'dsh-search-plugin': { status: 'ready', value: { authMode: 'credential', credentialRef: 'DSH_CODEX_API_KEY', endpoint: 'https://search.example.test/v1/alpha/search' }, revision: 7, writable: true },
+    'dsh-search-fetch': { status: 'ready', value: { fetchTimeoutMs: 30000 }, revision: 41, writable: true },
+  }
+  const formListeners = { 'dsh-search-plugin': new Set(), 'dsh-search-fetch': new Set() }
   let onCredential
   let onForm
   const document = {
@@ -49,15 +52,31 @@ function harness(overrides = {}, interactive = false) {
     unset: async ref => { calls.push(['unset', ref]); return { ok: true, value: undefined } },
     ...overrides,
   }
-  plugin.apply({
+  assert.equal(plugin.inject.includes('remote.credentials'), false)
+  const context = {
+    inject: (dependencies, callback) => {
+      assert.deepEqual(Array.from(dependencies), ['remote', 'remote.credentials'])
+      if (withCredentials) callback(context)
+    },
     effect: factory => { const cleanup = factory(); if (typeof cleanup === 'function') cleanups.push(cleanup) },
     locale: { register: () => () => calls.push(['locale-disposed']) },
     configForms: { get: entry => {
-      assert.equal(entry, 'dsh-search-plugin')
+      assert.ok(entry in configs)
       return {
-        getSnapshot: () => config,
-        subscribe: fn => { formListeners.add(fn); onForm = fn; return () => { formListeners.delete(fn); onForm = undefined } },
-        mutate: async (ops, revision) => { calls.push(['mutate', ops, revision]); return mutationResult },
+        getSnapshot: () => configs[entry],
+        subscribe: fn => { formListeners[entry].add(fn); onForm = fn; return () => { formListeners[entry].delete(fn); onForm = undefined } },
+        mutate: async (ops, revision) => {
+          calls.push(['mutate', ops, revision, entry])
+          if (!mutationResult || revision !== configs[entry].revision) return false
+          const value = { ...configs[entry].value }
+          for (const op of ops) {
+            if (op.op === 'unset') delete value[op.path[0]]
+            else value[op.path[0]] = op.value
+          }
+          configs[entry] = { ...configs[entry], value, revision: revision + 1 }
+          for (const fn of formListeners[entry]) fn()
+          return true
+        },
       }
     } },
     remote: { credentials, $on: (event, fn) => {
@@ -66,24 +85,25 @@ function harness(overrides = {}, interactive = false) {
     slots: {
       inject: (slot, fn) => { assert.equal(slot, 'plugins.row.config'); return fn() },
       register: (options, registeredComponent) => {
-        assert.equal(options.key, ['dsh-search-plugin#dsh-search-plugin', 'dsh-search-plugin#dsh-search-fetch'][registrations.length])
+        assert.equal(options.key, `dsh-search-plugin#${withCredentials && registrations.length === 0 ? 'dsh-search-plugin' : 'dsh-search-fetch'}`)
         registrations.push(options.name)
         components.push(registeredComponent)
         assert.equal(typeof registeredComponent, 'function')
-        const previous = Component
-        Component = previous ? props => [createElement(previous, { ...props, key: 'search' }), createElement(registeredComponent, { ...props, key: 'fetch' })] : registeredComponent
-        face = options.inject()
+        faces.push(options.inject())
         return () => calls.push(['slot-disposed'])
       },
     },
-  })
-  assert.deepEqual(registrations, ['plugins.row.config', 'plugins.row.config'])
-  const props = () => ({
-    view: 'page', // Each row editor obtains the preserved shared ConfigForms entry.
+  }
+  if (!withCredentials) delete context.remote.credentials
+  plugin.apply(context)
+  face = faces[0]
+  assert.equal(registrations.length, withCredentials ? 2 : 1)
+  const props = (index = 0) => ({
+    view: 'page',
     t: key => key,
-    ...face,
-    useConfig: select => select(face.hooks.config.getSnapshot()),
-    useCredential: select => select(face.hooks.credential.getSnapshot()),
+    ...faces[index],
+    useConfig: select => select(faces[index].hooks.config.getSnapshot()),
+    ...(faces[index].hooks.credential ? { useCredential: select => select(faces[index].hooks.credential.getSnapshot()) } : {}),
   })
   const expand = node => {
     if (Array.isArray(node)) return node.map((child, index) => {
@@ -94,8 +114,8 @@ function harness(overrides = {}, interactive = false) {
     if (typeof node.type === 'function') return expand(node.type(node.props))
     return { ...node, props: { ...node.props, children: expand(node.props?.children) } }
   }
-  const tree = () => { cursor = 0; return expand(Component(props())) }
-  const render = () => renderToStaticMarkup(interactive ? tree() : createElement(Component, props()))
+  const tree = () => { cursor = 0; return components.map((Component, index) => expand(Component(props(index)))) }
+  const render = () => renderToStaticMarkup(interactive ? tree() : components.map((Component, index) => createElement(Component, { ...props(index), key: index })))
   const nodes = (section) => {
     const result = []
     const visit = node => {
@@ -115,7 +135,7 @@ function harness(overrides = {}, interactive = false) {
   const button = (label, section = 'searchSettings') => (label.startsWith('key') ? nodes() : nodes(section)).find(node => node.type === 'button' && node.props.children === label)
   const change = (name, value) => field(name).props.onChange({ target: { value } })
   const submit = async (section = 'searchSettings') => { nodes(section).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); await tick() }
-  return { face, calls, styles, render, renderComponent: index => renderToStaticMarkup(createElement(components[index], props())), field, button, change, submit, refuse: () => { mutationResult = false },  setConfig: value => { config = value; for (const fn of formListeners) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
+  return { face, faces, configs, calls, styles, render, renderComponent: index => renderToStaticMarkup(createElement(components[index], props(index))), field, button, change, submit, refuse: () => { mutationResult = false }, setConfig: (value, entry = 'dsh-search-plugin') => { configs[entry] = value; for (const fn of formListeners[entry]) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
 }
 
 test('each component row renders only its own editor and no outer bundle entry is registered', () => {
@@ -139,7 +159,7 @@ test('component editors use preserved live configuration and write revision with
   assert.match(app.render(), /readOnly/)
   const ops = [{ op: 'set', path: ['endpoint'], value: 'https://next.example.test/v1/alpha/search' }]
   assert.equal(await app.face.mutateConfig(ops, 8), true)
-  assert.deepEqual(app.calls.find(call => call[0] === 'mutate'), ['mutate', ops, 8])
+  assert.deepEqual(app.calls.find(call => call[0] === 'mutate'), ['mutate', ops, 8, 'dsh-search-plugin'])
   off()
   app.setConfig({ status: 'loading' })
   assert.match(app.render(), /loading/)
@@ -342,7 +362,8 @@ test('search save and each reset leave the other form draft untouched', async ()
   app.button('reset', 'fetchSettings').props.onClick()
   await tick()
   write = app.calls.filter(call => call[0] === 'mutate').at(-1)
-  assert.equal(write[2], 7)
+  assert.equal(write[2], 41)
+  assert.equal(write[3], 'dsh-search-fetch')
   assert.deepEqual(JSON.parse(JSON.stringify(write[1])), ['fetchAllowedCidrs', 'fetchTimeoutMs', 'fetchMaxResponseBytes', 'fetchMaxContentChars'].map(field => ({ op: 'unset', path: [field] })))
   assert.equal(app.field('endpoint').props.value, 'https://unsaved.test/search')
   app.change('fetchTimeoutMs', '42000')
@@ -351,6 +372,7 @@ test('search save and each reset leave the other form draft untouched', async ()
   write = app.calls.filter(call => call[0] === 'mutate').at(-1)
   assert.ok(write[1].every(op => op.op === 'unset' && !op.path[0].startsWith('fetch')))
   assert.equal(app.field('fetchTimeoutMs').props.value, '42000')
+  app.change('authMode', 'credential')
   app.change('endpoint', 'https://retained.test/search')
   app.button('discard', 'fetchSettings').props.onClick()
   assert.equal(app.field('endpoint').props.value, 'https://retained.test/search')
@@ -360,21 +382,56 @@ test('search save and each reset leave the other form draft untouched', async ()
   app.dispose()
 })
 
-test('both drafts retain the shared host revision fence', async () => {
-  const app = harness({}, true)
-  app.change('endpoint', 'https://draft.test/search')
-  app.change('fetchTimeoutMs', '42000')
-  app.setConfig({ status: 'ready', value: { fetchTimeoutMs: 31000 }, revision: 8, writable: true })
-  for (const section of ['searchSettings', 'fetchSettings']) {
+test('each entry fences only its own conflicts while the other editor saves and resets', async () => {
+  for (const changed of ['dsh-search-plugin', 'dsh-search-fetch']) {
+    const app = harness({}, true)
+    app.change('endpoint', 'https://draft.test/search')
+    app.change('fetchTimeoutMs', '42000')
+    const isSearch = changed === 'dsh-search-plugin'
+    const section = isSearch ? 'searchSettings' : 'fetchSettings'
+    const otherSection = isSearch ? 'fetchSettings' : 'searchSettings'
+    const otherEntry = isSearch ? 'dsh-search-fetch' : 'dsh-search-plugin'
+    const before = app.configs[changed]
+    app.setConfig({ ...before, revision: before.revision + 1 }, changed)
+    const updated = app.configs[changed]
     assert.equal(app.button('save', section).props.disabled, true)
     assert.equal(app.button('reset', section).props.disabled, true)
+    assert.equal(app.button('save', otherSection).props.disabled, false)
     await app.submit(section)
     app.button('reset', section).props.onClick()
     await tick()
+    assert.equal(app.calls.some(call => call[0] === 'mutate'), false)
+    const otherRevision = app.configs[otherEntry].revision
+    await app.submit(otherSection)
+    assert.equal(app.configs[otherEntry].revision, otherRevision + 1)
+    assert.equal(app.calls.filter(call => call[0] === 'mutate').at(-1)[3], otherEntry)
+    app.button('reset', otherSection).props.onClick()
+    await tick()
+    assert.equal(app.configs[otherEntry].revision, otherRevision + 2)
+    assert.equal(app.configs[changed], updated)
+    assert.equal(app.field(isSearch ? 'endpoint' : 'fetchTimeoutMs').props.value, isSearch ? 'https://draft.test/search' : '42000')
+    assert.equal(app.button('save', section).props.disabled, true)
+    app.button('discard', section).props.onClick()
+    assert.equal(app.button('reset', section).props.disabled, false)
+    app.dispose()
   }
-  assert.equal(app.calls.some(call => call[0] === 'mutate'), false)
-  app.button('discard', 'fetchSettings').props.onClick()
-  assert.equal(app.field('fetchTimeoutMs').props.value, '31000')
-  assert.equal(app.field('endpoint').props.value, 'https://draft.test/search')
+})
+
+test('Fetch remains editable without remote.credentials and exposes no search credential face', async () => {
+  const app = harness({}, true, false)
+  assert.equal(app.face.hooks.credential, undefined)
+  assert.equal(app.face.storeCredential, undefined)
+  assert.doesNotMatch(app.render(), /searchSettings|unavailable/)
+  app.change('fetchTimeoutMs', '45000')
+  await app.submit('fetchSettings')
+  const write = app.calls.find(call => call[0] === 'mutate')
+  assert.equal(write[2], 41)
+  assert.equal(write[3], 'dsh-search-fetch')
+  assert.equal(app.configs['dsh-search-fetch'].value.fetchTimeoutMs, 45000)
+  assert.equal(app.configs['dsh-search-plugin'].revision, 7)
+  app.button('reset', 'fetchSettings').props.onClick()
+  await tick()
+  assert.equal(app.configs['dsh-search-fetch'].revision, 43)
+  assert.equal(app.configs['dsh-search-fetch'].value.fetchTimeoutMs, undefined)
   app.dispose()
 })
