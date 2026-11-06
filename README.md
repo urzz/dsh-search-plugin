@@ -25,7 +25,9 @@ dsh plugin --profile <name> add dsh-search-plugin
 
 进入 **插件 → 联网增强 → 组件**，分别打开 **搜索增强** 或 **Fetch增强** 的配置。外层插件包不再展示表单，每个组件只展示自己的配置。
 
-两个组件各自注册 Provider、持有配置 schema 和 ConfigForms revision，仅依赖官方 `web` 服务，互不提供或消费运行服务。可以单独启用、停用、配置与重置，关闭搜索增强后 Fetch增强仍可抓取，反之亦然。关闭某组件后，该能力的已配置路由会报 Provider 缺失，不会静默切换到其他实现。
+`dsh-search-ui` 是独立的界面加载组件，只负责加载两个配置页面，不注册 Provider、不展示配置表单；请保持启用。DSH 仅从包根入口发现浏览器模块，因此它不随搜索或 Fetch 中任一组件的停用而卸载。
+
+两个增强组件各自注册 Provider、持有配置 schema 和 ConfigForms revision，仅依赖官方 `web` 服务，互不提供或消费运行服务。可以单独启用、停用、配置与重置，关闭搜索增强后 Fetch增强仍可抓取，反之亦然。关闭某组件后，该能力的已配置路由会报 Provider 缺失，不会静默切换到其他实现。
 
 | 组件 | 配置 entry ID | Provider | 配置范围 |
 | --- | --- | --- | --- |

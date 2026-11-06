@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { Config } from '../lib/index.js'
+import { Config } from '../lib/search-component.js'
 import { ConfiguredSearchProvider } from '../lib/connection.js'
 
 // Use the schema's own reference runtime to simulate Loader's validated commits.

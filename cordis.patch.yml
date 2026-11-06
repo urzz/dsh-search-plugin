@@ -5,6 +5,11 @@
     fetchProvider: search-http
 
 - insert:
+    # DSH discovers the browser module only on a bare-package Loader entry.
+    - id: dsh-search-ui
+      name: dsh-search-plugin
+      config:
+        uiOnly: true
     - id: dsh-search-plugin
       name: dsh-search-plugin/search
       config:
