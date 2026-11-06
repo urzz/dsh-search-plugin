@@ -8,6 +8,7 @@ import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import * as plugin from '../lib/index.js'
+import * as searchComponent from '../lib/search-component.js'
 
 const require = createRequire(import.meta.url)
 const fixtureURL = new URL('./fixtures/composition.yml', import.meta.url)
@@ -85,7 +86,7 @@ test('real Loader boots the YAML composition, searches Alpha, caps sources and u
     assert.equal(entry.fiber?.state, 2, `${entry.id} reached active state`)
   }
   const codexEntry = loader.resolve('codex')
-  assert.equal(codexEntry.moduleNamespace, plugin)
+  assert.equal(codexEntry.moduleNamespace, searchComponent)
   const web = ctx.get('web')
   const tools = ctx.get('tools')
   assert.ok(web)
@@ -129,7 +130,7 @@ test('real Loader boots the YAML composition, searches Alpha, caps sources and u
     for (const field of ['tools', 'tool_choice', 'include', 'store', 'stream']) assert.equal(Object.hasOwn(request.body, field), false)
   }
 
-  // The real HTTP provider must enforce public-address restrictions, not issue
+  // The configured fetch provider must reject the initial private address, not issue
   // a second request to our credential-bearing Alpha endpoint.
   await assert.rejects(web.fetch({ url: endpoint }), error => error.code === 'WEB_BLOCKED_URL')
   assert.equal(requests.length, 2)

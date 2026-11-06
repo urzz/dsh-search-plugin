@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Web enhancement",
-    "description": "Give agents access to information from the web to inform their analysis and decisions."
+    "title": "Shared web enhancement UI",
+    "description": "Shared configuration and status for web search and fetch providers."
   }
 }

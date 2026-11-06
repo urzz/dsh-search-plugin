@@ -28,6 +28,13 @@ function harness(overrides = {}, interactive = false, withCredentials = true, fe
   }
   const formListeners = { 'dsh-search-plugin': new Set(), 'dsh-search-fetch': new Set() }
   let onCredential
+  let onInventory
+  let inventoryResult = { ok: true, value: { entries: [
+    { entryId: 'dsh-search-plugin', moduleName: 'dsh-search-plugin/search', enabled: true },
+    { entryId: 'dsh-search-fetch', moduleName: 'dsh-search-plugin/fetch', enabled: true },
+  ] } }
+  let web = { searchProvider: 'codex', fetchProvider: 'search-http' }
+  const settingsListeners = new Set()
   let onForm
   const document = {
     createElement: () => ({ dataset: {}, textContent: '', remove() { styles.splice(styles.indexOf(this), 1) } }),
@@ -55,24 +62,30 @@ function harness(overrides = {}, interactive = false, withCredentials = true, fe
   assert.equal(plugin.inject.includes('remote.credentials'), false)
   const context = {
     inject: (dependencies, callback) => {
-      assert.deepEqual(Array.from(dependencies), ['remote', 'remote.credentials'])
-      if (withCredentials) callback(context)
+      if (dependencies.includes('remote.pluginInventory')) callback(context)
+      else {
+        assert.deepEqual(Array.from(dependencies), ['remote', 'remote.credentials'])
+        if (withCredentials) callback(context)
+      }
     },
     effect: factory => { const cleanup = factory(); if (typeof cleanup === 'function') cleanups.push(cleanup) },
     locale: { register: () => () => calls.push(['locale-disposed']) },
     configForms: { describe: () => {
       let previous
+      let previousWeb
       let snapshot
       return {
+        ensure: async () => {},
         getSnapshot: () => {
           const config = configs['dsh-search-fetch']
-          if (config !== previous) {
+          if (config !== previous || web !== previousWeb) {
             previous = config
-            snapshot = { view: { writable: config.writable, namespaces: config.status === 'ready' ? [{ ...config, ns: 'dsh-search-fetch' }] : [] } }
+            previousWeb = web
+            snapshot = { error: null, view: { writable: config.writable, namespaces: [ ...(config.status === 'ready' ? [{ ...config, ns: 'dsh-search-fetch' }] : []), ...(web ? [{ ns: 'web', value: web }] : []) ] } }
           }
           return snapshot
         },
-        subscribe: fn => { formListeners['dsh-search-fetch'].add(fn); return () => formListeners['dsh-search-fetch'].delete(fn) },
+        subscribe: fn => { formListeners['dsh-search-fetch'].add(fn); settingsListeners.add(fn); return () => { formListeners['dsh-search-fetch'].delete(fn); settingsListeners.delete(fn) } },
       }
     }, get: entry => {
       assert.ok(entry in configs)
@@ -93,13 +106,14 @@ function harness(overrides = {}, interactive = false, withCredentials = true, fe
         },
       }
     } },
-    remote: { credentials, $on: (event, fn) => {
+    remote: { credentials, pluginInventory: { list: async () => inventoryResult }, $on: (event, fn) => {
+      if (event === 'plugin-manager/changed') { onInventory = fn; return () => { onInventory = undefined } }
       assert.equal(event, 'credentials/reference-updated'); onCredential = fn; return () => { onCredential = undefined }
     } },
     slots: {
       inject: (slot, fn) => { assert.equal(slot, 'plugins.row.config'); return fn() },
       register: (options, registeredComponent) => {
-        assert.equal(options.key, `dsh-search-plugin#${withCredentials && registrations.length === 0 ? 'dsh-search-plugin' : 'dsh-search-fetch'}`)
+        assert.equal(options.key, `dsh-search-plugin#${registrations.length === (withCredentials ? 2 : 1) ? 'dsh-search-ui' : withCredentials && registrations.length === 0 ? 'dsh-search-plugin' : 'dsh-search-fetch'}`)
         registrations.push(options.name)
         components.push(registeredComponent)
         assert.equal(typeof registeredComponent, 'function')
@@ -111,12 +125,16 @@ function harness(overrides = {}, interactive = false, withCredentials = true, fe
   if (!withCredentials) delete context.remote.credentials
   plugin.apply(context)
   face = faces[0]
-  assert.equal(registrations.length, withCredentials ? 2 : 1)
+  assert.equal(registrations.length, withCredentials ? 3 : 2)
   const props = (index = 0) => ({
     view: 'page',
     t: key => key,
     ...faces[index],
     useConfig: select => select(faces[index].hooks.config.getSnapshot()),
+    ...(faces[index].hooks.settings ? {
+      useSettings: select => select(faces[index].hooks.settings.getSnapshot()),
+      useProviderRows: select => select(faces[index].hooks.providerRows.getSnapshot()),
+    } : {}),
     ...(faces[index].hooks.credential ? { useCredential: select => select(faces[index].hooks.credential.getSnapshot()) } : {}),
   })
   const expand = node => {
@@ -149,8 +167,48 @@ function harness(overrides = {}, interactive = false, withCredentials = true, fe
   const button = (label, section = 'searchSettings') => (label.startsWith('key') ? nodes() : nodes(section)).find(node => node.type === 'button' && node.props.children === label)
   const change = (name, value) => field(name).props.onChange({ target: { value } })
   const submit = async (section = 'searchSettings') => { nodes(section).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); await tick() }
-  return { face, faces, configs, calls, styles, render, renderComponent: index => renderToStaticMarkup(createElement(components[index], props(index))), field, button, change, submit, refuse: () => { mutationResult = false }, setConfig: (value, entry = 'dsh-search-plugin') => { configs[entry] = value; for (const fn of formListeners[entry]) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
+  return { face, faces, configs, calls, styles, render,
+    overview: (view = 'page') => renderToStaticMarkup(createElement(components.at(-1), { ...props(components.length - 1), view })),
+    updateOverview: (selection, result = inventoryResult) => { web = selection; inventoryResult = result; for (const listener of settingsListeners) listener(); onInventory?.() },
+    inventoryListener: () => onInventory, renderComponent: index => renderToStaticMarkup(createElement(components[index], props(index))), field, button, change, submit, refuse: () => { mutationResult = false }, setConfig: (value, entry = 'dsh-search-plugin') => { configs[entry] = value; for (const fn of formListeners[entry]) fn() }, notify: ref => onCredential?.(ref), formChanged: () => onForm?.(), dispose: () => { for (const cleanup of cleanups.reverse()) cleanup() } }
 }
+
+test('shared root overview remains available without credentials and with both provider rows disabled', async () => {
+  const app = harness({}, false, false)
+  app.updateOverview({ searchProvider: 'deepseek-search-api', fetchProvider: 'http' }, { ok: true, value: { entries: [
+    { entryId: 'dsh-search-plugin', moduleName: 'dsh-search-plugin/search', enabled: false },
+    { entryId: 'dsh-search-fetch', moduleName: 'dsh-search-plugin/fetch', enabled: false },
+  ] } })
+  await tick()
+  const html = app.overview()
+  assert.match(html, /deepseek-search-api/)
+  assert.match(html, /<code>http<\/code>/)
+  assert.equal((html.match(/rowDisabled/g) || []).length, 2)
+  assert.equal((html.match(/routedElsewhere/g) || []).length, 2)
+  assert.doesNotMatch(html, /<form|<input|credentials/)
+  assert.equal(app.overview('summary'), 'description')
+  app.updateOverview({ searchProvider: 'codex', fetchProvider: 'search-http' })
+  await tick()
+  assert.equal((app.overview().match(/routedHere/g) || []).length, 2)
+  assert.equal((app.overview().match(/rowDisabled/g) || []).length, 2, 'selection never implies enablement')
+  app.dispose()
+  assert.equal(app.inventoryListener(), undefined)
+})
+
+test('overview distinguishes inventory errors, missing rows and absent routing', async () => {
+  const app = harness()
+  app.updateOverview({}, { ok: false, error: { message: 'denied' } })
+  await tick()
+  assert.match(app.overview(), /overviewRowsError/)
+  assert.match(app.overview(), /providerUnselected/)
+  assert.doesNotMatch(app.overview(), /rowDisabled|routedElsewhere/)
+  app.updateOverview(undefined, { ok: true, value: { entries: [] } })
+  await tick()
+  assert.match(app.overview(), /rowUnavailable/)
+  assert.match(app.overview(), /unavailable/)
+  assert.doesNotMatch(app.overview(), /routedHere|routedElsewhere/)
+  app.dispose()
+})
 
 test('each component row renders only its own editor and no outer bundle entry is registered', () => {
   const app = harness()

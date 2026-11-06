@@ -1,10 +1,10 @@
 # 联网增强
 
-面向 **DSH 0.2.1-rc.4** 的 TypeScript ESM 插件。复用官方 `web_search`、`web_fetch` 工具，通过实时配置选择搜索协议，增强本机 HTTP 抓取的地址授权。设计参考 [dsh-tool-web-enhanced](https://github.com/Yurzi/dsh-tool-web-enhanced)，本仓库实现仅覆盖 Alpha Search、DeepSeek Search API 与本机抓取。
+面向 **DSH 0.2.2-rc.1** 的 TypeScript ESM 插件。复用官方 `web_search`、`web_fetch` 工具，通过实时配置选择搜索协议，增强本机 HTTP 抓取的地址授权。设计参考 [dsh-tool-web-enhanced](https://github.com/Yurzi/dsh-tool-web-enhanced)，本仓库实现仅覆盖 Alpha Search、DeepSeek Search API 与本机抓取。
 
 ```text
 web_search → ctx.web → codex（稳定路由）→ protocol factory → Alpha / DeepSeek Search API
-web_fetch  → ctx.web → search-http → 官方 HttpFetchProvider + CIDR resolver
+web_fetch  → ctx.web → search-http → 初始 URL / DNS 地址预检 → 官方 HttpFetchProvider
 ```
 
 ## 构建与安装
@@ -23,9 +23,9 @@ dsh plugin --profile <name> add dsh-search-plugin
 
 ## 配置 UI
 
-进入 **插件 → 联网增强 → 组件**，分别打开 **搜索增强** 或 **Fetch增强** 的配置。外层插件包不再展示表单，每个组件只展示自己的配置。
+进入 **插件 → 联网增强 → 组件**，分别打开 **搜索增强** 或 **Fetch增强** 的配置。包内的 **联网增强界面** 提供只读状态概览，**搜索增强** 和 **Fetch增强** 各自提供配置表单。
 
-`dsh-search-ui` 是独立的界面加载组件，只负责加载两个配置页面，不注册 Provider、不展示配置表单；请保持启用。DSH 仅从包根入口发现浏览器模块，因此它不随搜索或 Fetch 中任一组件的停用而卸载。
+`dsh-search-ui` 显示为 **联网增强界面**，负责加载两个配置页面和生效状态概览，不注册 Provider；请保持启用。概览展示搜索与抓取的实际 Provider、组件启停状态及路由是否被其他配置覆盖。DSH 从包根入口发现浏览器模块，因此它不随搜索或 Fetch 中任一组件的停用而卸载。
 
 两个增强组件各自注册 Provider、持有配置 schema 和 ConfigForms revision，仅依赖官方 `web` 服务，互不提供或消费运行服务。可以单独启用、停用、配置与重置，关闭搜索增强后 Fetch增强仍可抓取，反之亦然。关闭某组件后，该能力的已配置路由会报 Provider 缺失，不会静默切换到其他实现。
 
@@ -95,9 +95,11 @@ fetchAllowedCidrs:
   - 192.168.96.0/20
 ```
 
-授权是对整个网段的授权，不区分代理 Fake-IP 和该段内真实服务。默认不自动开启。CIDR 必须使用网络基址；支持 IPv4/IPv6，映射 IPv4 地址使用 IPv4 CIDR。校验整个 DNS 答案集，并将结果交给官方传输固定连接地址；保留 URL/协议检查、同源重定向、超时、响应上限与代理处理。抓取不会携带搜索密钥。不提供 JS 渲染、登录、PDF 转换或跨源自动跳转。
+授权是对整个网段的授权，不区分代理 Fake-IP 和该段内真实服务。默认不自动开启。CIDR 必须使用网络基址；支持 IPv4/IPv6，映射 IPv4 地址使用 IPv4 CIDR。每次请求预检初始 IP 字面量，或在本机解析域名并校验整个 DNS 答案集（包括 DNS64 内嵌 IPv4）；任一地址未获授权即拒绝。空 CIDR 仍仅放行公网，不会关闭预检。超时与取消覆盖预检及读取正文。
 
-当配置 HTTP/SOCKS 代理时，沿用官方代理解析与连接策略；代理远端解析域名的行为不由本机 resolver 接管，因此该 allowlist 不是代理服务器的网络隔离策略。需要约束代理后方目的地址时，应在代理端配置策略。
+**rc.1 兼容变化：地址检查是初始预检，不是连接地址保证。** 官方 `HttpFetchProvider` 已移除 resolver 注入接口；传输会独立解析域名，预检不能防止二次解析之间的 DNS rebinding，也不复验后续同源重定向的目标地址。URL/协议检查、同源重定向、响应上限与代理处理交由官方 Provider 执行。严格的目的地址隔离应由受控代理或网络策略实现。抓取不会携带搜索密钥。不提供 JS 渲染、登录、PDF 转换或跨源自动跳转。
+
+当配置 HTTP/SOCKS 代理时，初始域名仍做本机 DNS 预检（使用 Fake-IP 时需授权对应网段），传输沿用官方代理解析与连接策略。代理可能独立解析域名，因此本机预检不是代理服务器的网络隔离策略。需要约束代理后方目的地址时，应在代理端配置策略。
 
 ## 扩展协议
 
@@ -107,4 +109,4 @@ fetchAllowedCidrs:
 
 ## 验证
 
-`pnpm check` 包含类型检查、构建、官方 Loader 集成、协议切换、凭据隔离、UI 与抓取安全测试。真实服务 E2E 需要显式开启现有 `DSH_SEARCH_E2E*` 环境选项，可能产生费用；本地通过不等同于在线凭据或当前 GUI 的验收。
+`pnpm check` 包含类型检查、构建、官方 Loader 集成、协议切换、凭据隔离、UI 与抓取安全测试。分层配置测试使用真实 Settings 和临时 profile，验证保存与撤销覆盖、实时引用保持、无效配置拒绝后文件及 revision 不变；rc.1 抓取测试覆盖初始 DNS 预检、超时取消及独立解析的边界。真实服务 E2E 需要显式开启现有 `DSH_SEARCH_E2E*` 环境选项，可能产生费用；本地通过不等同于在线凭据或当前 GUI 的验收。

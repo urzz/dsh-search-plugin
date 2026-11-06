@@ -120,27 +120,45 @@ test('provider uses current settings once and retains official response limits a
   await assert.rejects(provider.fetch({ url }), hasCode('WEB_FETCH_TOO_LARGE'))
 })
 
-test('official transport pins DNS answers, preserves Host, and rechecks each redirect hop', async t => {
+test('rc.1 preflights the initial hostname, then leaves DNS and same-origin redirects to official transport', async t => {
   let host
+  let requests = 0
   const url = await server(t, (req, res) => {
-    host = req.headers.host
+    requests++; host = req.headers.host
     if (req.url === '/redirect') { res.writeHead(302, { Location: '/final' }); res.end(); return }
-    res.setHeader('Content-Type', 'text/plain'); res.end('pinned')
+    res.setHeader('Content-Type', 'text/plain'); res.end('official transport')
   })
-  const target = new URL(url); target.hostname = 'pinning.invalid'
+  const target = new URL(url); target.hostname = 'localhost'
   let lookups = 0
-  t.mock.method(dns, 'lookup', async () => { lookups++; return [answer('127.0.0.1')] })
+  let answers = [answer('127.0.0.1')]
+  t.mock.method(dns, 'lookup', async () => { lookups++; return answers })
   syncBuiltinESMExports()
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports() })
-  const provider = new ConfiguredFetchProvider(() => ({ ...defaults, allowedCidrs: ['127.0.0.0/8'] }))
-  assert.equal((await provider.fetch({ url: `${target.origin}/redirect` })).body.content, 'pinned')
+  const provider = new ConfiguredFetchProvider(() => defaults)
+  await assert.rejects(provider.fetch({ url: target.origin }), hasCode('WEB_BLOCKED_URL'))
+  assert.equal(requests, 0, 'blocked preflight never reaches transport')
+  answers = [answer('8.8.8.8'), answer('127.0.0.1')]
+  await assert.rejects(provider.fetch({ url: target.origin }), hasCode('WEB_BLOCKED_URL'))
+  assert.equal(requests, 0, 'mixed DNS answers are rejected as a whole')
+  // The official connector independently resolves localhost. This intentionally
+  // demonstrates the new boundary: the preflight answer is not a pinned address.
+  answers = [answer('8.8.8.8')]; lookups = 0
+  assert.equal((await provider.fetch({ url: `${target.origin}/redirect` })).body.content, 'official transport')
   assert.equal(host, target.host)
-  assert.equal(lookups, 2, 'one checked lookup per hop, none by the connector')
-  lookups = 0
-  dns.lookup = async () => [answer(++lookups === 1 ? '127.0.0.1' : '169.254.169.254')]
+  assert.equal(requests, 2)
+  assert.equal(lookups, 1, 'preflight checks only the initial target, not redirect hops')
+})
+
+test('the overall deadline and caller cancellation cover a pending preflight', async t => {
+  t.mock.method(dns, 'lookup', async () => new Promise(() => {}))
   syncBuiltinESMExports()
-  await assert.rejects(provider.fetch({ url: `${target.origin}/redirect` }), hasCode('WEB_BLOCKED_URL'))
-  assert.equal(lookups, 2)
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports() })
+  const provider = new ConfiguredFetchProvider(() => ({ ...defaults, timeoutMs: 30 }))
+  await assert.rejects(provider.fetch({ url: 'http://pending.invalid/' }), hasCode('WEB_FETCH_TIMEOUT'))
+  const controller = new AbortController()
+  const pending = provider.fetch({ url: 'http://pending.invalid/' }, controller.signal)
+  controller.abort()
+  await assert.rejects(pending, hasCode('WEB_ABORTED'))
 })
 
 test('official URL policy, cross-origin redirects, hop cap, timeout and cancellation remain enforced', async t => {

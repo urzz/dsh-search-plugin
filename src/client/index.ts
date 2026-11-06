@@ -10,6 +10,7 @@ import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import { SearchConfig } from './SearchConfig.js'
 import { FetchConfig } from './FetchConfig.js'
+import { Overview, type OverviewFace, type ProviderRows } from './Overview.js'
 import { en, zh, type LocaleKey } from './locales.js'
 import css from './style.css'
 
@@ -82,6 +83,45 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
     name: 'plugins.row.config', key: 'dsh-search-plugin#dsh-search-fetch', locale: 'searchPlugin', inject: () => face,
   }, FetchConfig)))
+  registerOverview(ctx)
+}
+
+function registerOverview(ctx: Context): void {
+  const settings = ctx.configForms.describe()
+  void settings.ensure()
+  let state: ProviderRows = { status: 'unavailable' }
+  let refreshRows = () => {}
+  const listeners = new Set<() => void>()
+  const publish = (next: ProviderRows) => { state = next; for (const listener of listeners) listener() }
+  const face: OverviewFace = {
+    hooks: {
+      settings,
+      providerRows: { getSnapshot: () => state, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } } },
+    },
+    refreshRows: () => refreshRows(),
+  }
+  ctx.effect(() => () => listeners.clear())
+  ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config', key: 'dsh-search-plugin#dsh-search-ui', locale: 'searchPlugin', inject: () => face,
+  }, Overview)))
+  ctx.inject(['remote', 'remote.pluginInventory'], inner => {
+    let disposed = false
+    let sequence = 0
+    const refresh = () => {
+      const request = ++sequence
+      publish({ status: 'loading' })
+      void inner.remote.pluginInventory.list().then(result => {
+        if (disposed || request !== sequence) return
+        if (!result.ok) { publish({ status: 'error' }); return }
+        const row = (id: string, moduleName: string) => result.value.entries.find(entry => entry.entryId === id && entry.moduleName === moduleName)?.enabled
+        publish({ status: 'ready', search: row('dsh-search-plugin', 'dsh-search-plugin/search'), fetch: row('dsh-search-fetch', 'dsh-search-plugin/fetch') })
+      }, () => { if (!disposed && request === sequence) publish({ status: 'error' }) })
+    }
+    refreshRows = refresh
+    inner.effect(() => inner.remote.$on('plugin-manager/changed', refresh))
+    inner.effect(() => () => { disposed = true; sequence++; refreshRows = () => {}; publish({ status: 'unavailable' }) })
+    refresh()
+  })
 }
 
 function registerSearch(ctx: Context): void {

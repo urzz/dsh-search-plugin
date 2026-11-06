@@ -16,15 +16,15 @@ const basePatchURL = new URL('./fixtures/bundle-base.patch.yml', import.meta.url
 
 test('official metadata resolver reads exported titles and descriptions without executing the plugin', () => {
   const meta = readPluginMeta('dsh-search-plugin', import.meta.url)
-  assert.equal(meta.title.zh, '联网增强')
-  assert.equal(meta.title.en, 'Web enhancement')
+  assert.equal(meta.title.zh, '联网增强界面')
+  assert.equal(meta.title.en, 'Shared web enhancement UI')
   for (const [component, title] of [['search', '搜索增强'], ['fetch', 'Fetch增强']]) {
     const metadata = readPluginMeta(`dsh-search-plugin/${component}`, import.meta.url)
     assert.equal(metadata.title.zh, title)
     assert.equal(metadata.error, undefined)
   }
-  assert.equal(meta.description.zh, '将互联网作为智能体的信息来源，为分析与判断补充外部依据。')
-  assert.equal(meta.description.en, 'Give agents access to information from the web to inform their analysis and decisions.')
+  assert.equal(meta.description.zh, '搜索增强与 Fetch 增强的共享配置和状态界面。')
+  assert.equal(meta.description.en, 'Shared configuration and status for web search and fetch providers.')
 })
 
 function assertEvaluated(value) {
@@ -84,12 +84,12 @@ test('shipped bundle preserves preceding HTTP limits and boots its composed entr
   await loader.await()
   for (const entry of loader.entries()) {
     assert.equal(entry.fiber?.state, 2, `${entry.id} activates through the real Loader`)
-    assertEvaluated(entry.fiber.config)
+    assertEvaluated(entry.fiber.effectiveConfig)
   }
-  const searchConfig = loader.resolve('dsh-search-plugin').fiber.config
+  const searchConfig = loader.resolve('dsh-search-plugin').fiber.effectiveConfig
   assert.equal(Object.hasOwn(searchConfig, 'model'), false)
   assert.equal(searchConfig.endpoint.get(), 'https://bundle-test.invalid/v1/alpha/search')
-  const httpConfig = loader.resolve('web-fetch-http').fiber.config
+  const httpConfig = loader.resolve('web-fetch-http').fiber.effectiveConfig
   assert.equal(httpConfig.userAgent, 'dsh-bundle-test-agent')
   assert.equal(httpConfig.maxRedirects, 0)
   assert.equal(httpConfig.maxResponseBytes, 23456)

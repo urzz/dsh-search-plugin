@@ -3,7 +3,8 @@ import { isIP } from 'node:net'
 import ipaddr from 'ipaddr.js'
 import { validateCidr } from './cidr.js'
 import { WebError, type WebFetchProvider, type WebFetchRequest } from '@deepseek-ai/dsh-web'
-import { HttpFetchProvider, type HttpFetchResolver } from '@deepseek-ai/dsh-web-fetch-http'
+import { HttpFetchProvider } from '@deepseek-ai/dsh-web-fetch-http'
+import type { LookupAddress } from 'node:dns'
 
 export interface FetchSettings {
   allowedCidrs: readonly string[]
@@ -53,14 +54,14 @@ function blocked(): never {
 /** Stop waiting for an OS DNS lookup when the official transport deadline expires. */
 function lookupAnswers(host: string, signal: AbortSignal, resolve: typeof lookup) {
   signal.throwIfAborted()
-  return new Promise<Awaited<ReturnType<HttpFetchResolver>>>((accept, reject) => {
+  return new Promise<LookupAddress[]>((accept, reject) => {
     const abort = () => reject(signal.reason)
     signal.addEventListener('abort', abort, { once: true })
     resolve(host, { all: true, order: 'verbatim' }).then(answers => {
       if (answers.some(a => (a.family !== 4 && a.family !== 6) || isIP(a.address) !== a.family)) {
         reject(new WebError('DNS returned an invalid IP address', 'WEB_PROVIDER_ERROR'))
       } else {
-        accept(answers as Awaited<ReturnType<HttpFetchResolver>>)
+        accept(answers as LookupAddress[])
       }
     }, reject).finally(() => signal.removeEventListener('abort', abort))
   })
@@ -74,10 +75,10 @@ function embeddedV4(bytes: number[], length: number): string | undefined {
   return [...bytes.slice(start, 8), ...bytes.slice(9, 9 + 4 - (8 - start))].join('.')
 }
 
-/** Validate the entire DNS answer set once; the official transport pins these addresses. */
+/** Preflight the initial DNS answer set; rc.1 transport resolves independently. */
 export async function resolveAllowedAddresses(
   hostname: string, signal: AbortSignal, allowedCidrs: readonly string[], resolve: typeof lookup = lookup,
-): ReturnType<HttpFetchResolver> {
+): Promise<LookupAddress[]> {
   signal.throwIfAborted()
   const cidrs = allowedCidrs.map(parseCidr)
   const host = bareHost(hostname)
@@ -109,7 +110,7 @@ export async function resolveAllowedAddresses(
   return answers
 }
 
-/** Current settings are snapshotted once for each request, including redirect hops. */
+/** Snapshot settings once; the deadline covers initial preflight and official transport. */
 export class ConfiguredFetchProvider implements WebFetchProvider {
   readonly id = 'search-http'
   constructor(private readonly read: () => FetchSettings) {}
@@ -118,16 +119,25 @@ export class ConfiguredFetchProvider implements WebFetchProvider {
     if (signal?.aborted) throw new WebError('web fetch aborted', 'WEB_ABORTED')
     const current = this.read()
     const settings = { ...current, allowedCidrs: [...current.allowedCidrs] }
-    const cidrs = settings.allowedCidrs.map(parseCidr)
-    const url = URL.parse(request.url)
-    // The official proxy path skips resolution for public literals. Check compatible
-    // IPv6 too, which its classifier otherwise treats as public (e.g. ::7f00:1).
-    if (url && ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) {
-      const host = bareHost(url.hostname)
-      if (isIP(host) && !allows(host, cidrs)) blocked()
+    // Validate rules even for invalid URLs; malformed policy must never disable filtering.
+    settings.allowedCidrs.forEach(parseCidr)
+    const timeout = new AbortController()
+    const timer = setTimeout(() => timeout.abort(), settings.timeoutMs)
+    const combined = signal ? AbortSignal.any([signal, timeout.signal]) : timeout.signal
+    try {
+      const url = URL.parse(request.url)
+      // Leave invalid URLs to the official provider so its URL errors stay authoritative.
+      if (request.url.length <= 2048 && url && ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) {
+        await resolveAllowedAddresses(url.hostname, combined, settings.allowedCidrs)
+      }
+      combined.throwIfAborted()
+      return await new HttpFetchProvider({ ...settings, maxBodyChars: settings.maxContentChars }).fetch(request, combined)
+    } catch (error) {
+      if (signal?.aborted) throw new WebError('web fetch aborted', 'WEB_ABORTED')
+      if (timeout.signal.aborted) throw new WebError('web fetch timed out', 'WEB_FETCH_TIMEOUT')
+      throw error
+    } finally {
+      clearTimeout(timer)
     }
-    return new HttpFetchProvider({ ...settings, maxBodyChars: settings.maxContentChars },
-      (host, abort) => resolveAllowedAddresses(host, abort, settings.allowedCidrs),
-    ).fetch(request, signal)
   }
 }

@@ -1,6 +1,12 @@
 /** Typed copy for the search configuration page. */
 export const en = {
-  title: 'Web enhancement', description: 'Give agents access to information from the web to inform their analysis and decisions.',
+  title: 'Shared web enhancement UI', description: 'Shared configuration and status for web search and fetch providers.',
+  overview: 'Configuration status', sharedHint: 'This shared interface stays available when the search or fetch provider row is disabled. Configure each provider from its own row.',
+  effectiveSearchProvider: 'Effective web.searchProvider', effectiveFetchProvider: 'Effective web.fetchProvider',
+  searchRow: 'Search provider row', fetchRow: 'Fetch provider row', rowEnabled: 'Enabled', rowDisabled: 'Disabled', rowUnavailable: 'Row is not present in the Host inventory.',
+  routing: 'Routing', routedHere: 'Selected provider belongs to this bundle.', routedElsewhere: 'Routed to another provider.', providerUnselected: 'No provider selected.',
+  routingHint: 'Routing shows the accepted web configuration; row enablement is separate and does not guarantee provider readiness. Routing to another provider leaves this bundle’s settings stored for later use.',
+  overviewSettingsError: 'Could not refresh web settings. Any values shown are the last accepted values.', overviewRowsError: 'Could not read provider row status.', refreshOverview: 'Refresh row status',
   protocol: 'Search protocol', codexAlpha: 'Codex Alpha', deepseekSearchApi: 'DeepSeek Search API',
   searchSettings: 'Search service', searchLimits: 'Alpha search limits', fetchSettings: 'Web fetch', credentials: 'Credential management', credentialTarget: 'Selected credential reference',
   deepseekEndpoint: 'DeepSeek API base URL', deepseekCredentialRef: 'DeepSeek credential reference', deepseekCount: 'Search results (1–50)',
@@ -27,7 +33,13 @@ export const en = {
 } as const
 export type LocaleKey = keyof typeof en
 export const zh: Record<LocaleKey, string> = {
-  title: '联网增强', description: '将互联网作为智能体的信息来源，为分析与判断补充外部依据。',
+  title: '联网增强界面', description: '搜索增强与 Fetch 增强的共享配置和状态界面。',
+  overview: '配置状态概览', sharedHint: '搜索或 Fetch 提供方行停用后，此共享界面仍可使用。各提供方的配置请从对应行打开。',
+  effectiveSearchProvider: '实际生效的 web.searchProvider', effectiveFetchProvider: '实际生效的 web.fetchProvider',
+  searchRow: '搜索提供方行', fetchRow: 'Fetch 提供方行', rowEnabled: '已启用', rowDisabled: '已停用', rowUnavailable: '主机清单中不存在此行。',
+  routing: '路由状态', routedHere: '已选择本插件包的提供方。', routedElsewhere: '已路由至其他提供方。', providerUnselected: '未选择提供方。',
+  routingHint: '路由展示已接受的 web 配置；行启用状态独立显示，不代表提供方已就绪。路由至其他提供方时，本插件包的配置仍会保留供后续使用。',
+  overviewSettingsError: '无法刷新 web 配置，当前显示的值为上次接受的配置。', overviewRowsError: '无法读取提供方行状态。', refreshOverview: '刷新行状态',
   protocol: '搜索协议', codexAlpha: 'Codex Alpha', deepseekSearchApi: 'DeepSeek Search API',
   searchSettings: '搜索增强', searchLimits: 'Alpha 搜索限制', fetchSettings: 'Fetch增强', credentials: '凭据管理', credentialTarget: '当前凭据引用',
   deepseekEndpoint: 'DeepSeek API 基础地址', deepseekCredentialRef: 'DeepSeek 凭据引用名', deepseekCount: '搜索结果数量（1–50）',

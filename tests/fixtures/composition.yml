@@ -2,18 +2,18 @@
   {
     "id": "web",
     "name": "@deepseek-ai/dsh-web",
-    "config": { "searchProvider": "codex", "fetchProvider": "http" }
+    "config": { "searchProvider": "codex", "fetchProvider": "search-http" }
   },
   { "id": "tools", "name": "@deepseek-ai/dsh-tools" },
   { "id": "system-prompt", "name": "@deepseek-ai/dsh-system-prompt" },
   {
     "id": "http-fetch",
-    "name": "@deepseek-ai/dsh-web-fetch-http",
-    "config": { "timeoutMs": 1000, "maxBodyChars": 1000 }
+    "name": "../../lib/fetch-component.js",
+    "config": { "fetchTimeoutMs": 1000, "fetchMaxContentChars": 1000 }
   },
   {
     "id": "codex",
-    "name": "../../lib/index.js",
+    "name": "../../lib/search-component.js",
     "config": {
       "authMode": "credential",
       "endpoint": "http://127.0.0.1:1/v1/alpha/search",
