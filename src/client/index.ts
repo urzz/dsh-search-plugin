@@ -53,8 +53,30 @@ export function apply(ctx: Context): void {
   })
   ctx.inject(['remote', 'remote.credentials'], registerSearch)
   const form = ctx.configForms.get<Record<string, unknown>>('dsh-search-fetch')
+  // Host settings currently drops transform callbacks on its second schema serialization.
+  // Read the already validated namespace value from the public mirror; keep writes on
+  // ConfigForms so server validation and revision fences remain authoritative.
+  const mirror = ctx.configForms.describe()
+  let previous: ReturnType<typeof mirror.getSnapshot> | undefined
+  let snapshot: ConfigFormSnapshot<Record<string, unknown>>
+  const getSnapshot = () => {
+    const current = mirror.getSnapshot()
+    if (current !== previous) {
+      previous = current
+      const section = current.view?.namespaces.find(section => section.ns === 'dsh-search-fetch')
+      snapshot = {
+        status: section ? 'ready' : current.view ? 'unavailable' : 'loading',
+        value: section?.value as Record<string, unknown> | undefined,
+        base: section?.base as Record<string, unknown> | undefined,
+        user: section?.user as Record<string, unknown> | undefined,
+        revision: section?.revision,
+        writable: current.view?.writable ?? false,
+      }
+    }
+    return snapshot
+  }
   const face: FetchFace = {
-    hooks: { config: { getSnapshot: () => form.getSnapshot(), subscribe: listener => form.subscribe(listener) } },
+    hooks: { config: { getSnapshot, subscribe: listener => mirror.subscribe(listener) } },
     mutateConfig: (ops, expectedRevision) => form.mutate(ops, expectedRevision),
   }
   ctx.effect(() => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({

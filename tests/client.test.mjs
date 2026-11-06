@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url)
 const code = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
 const tick = async () => { await Promise.resolve(); await Promise.resolve() }
 
-function harness(overrides = {}, interactive = false, withCredentials = true) {
+function harness(overrides = {}, interactive = false, withCredentials = true, fetchFormLoading = false) {
   const states = []
   let cursor = 0
   let mutationResult = true
@@ -60,10 +60,24 @@ function harness(overrides = {}, interactive = false, withCredentials = true) {
     },
     effect: factory => { const cleanup = factory(); if (typeof cleanup === 'function') cleanups.push(cleanup) },
     locale: { register: () => () => calls.push(['locale-disposed']) },
-    configForms: { get: entry => {
+    configForms: { describe: () => {
+      let previous
+      let snapshot
+      return {
+        getSnapshot: () => {
+          const config = configs['dsh-search-fetch']
+          if (config !== previous) {
+            previous = config
+            snapshot = { view: { writable: config.writable, namespaces: config.status === 'ready' ? [{ ...config, ns: 'dsh-search-fetch' }] : [] } }
+          }
+          return snapshot
+        },
+        subscribe: fn => { formListeners['dsh-search-fetch'].add(fn); return () => formListeners['dsh-search-fetch'].delete(fn) },
+      }
+    }, get: entry => {
       assert.ok(entry in configs)
       return {
-        getSnapshot: () => configs[entry],
+        getSnapshot: () => fetchFormLoading && entry === 'dsh-search-fetch' ? { status: 'loading' } : configs[entry],
         subscribe: fn => { formListeners[entry].add(fn); onForm = fn; return () => { formListeners[entry].delete(fn); onForm = undefined } },
         mutate: async (ops, revision) => {
           calls.push(['mutate', ops, revision, entry])
@@ -164,6 +178,22 @@ test('component editors use preserved live configuration and write revision with
   app.setConfig({ status: 'loading' })
   assert.match(app.render(), /loading/)
   app.setConfig({ status: 'unavailable' })
+  assert.match(app.render(), /unavailable/)
+  app.dispose()
+})
+
+test('Fetch reads validated mirror values even when callback serialization leaves the generic form loading', async () => {
+  const app = harness({}, true, false, true)
+  app.setConfig({ status: 'ready', value: { fetchAllowedCidrs: ['198.18.0.0/15', '192.168.96.0/20'], fetchTimeoutMs: 30000 }, revision: 41, writable: true }, 'dsh-search-fetch')
+  assert.match(app.render(), /198\.18\.0\.0\/15/)
+  assert.match(app.render(), /192\.168\.96\.0\/20/)
+  const source = app.face.hooks.config
+  assert.equal(source.getSnapshot(), source.getSnapshot(), 'React snapshots remain stable between mirror updates')
+  app.change('fetchTimeoutMs', '31000')
+  await app.submit('fetchSettings')
+  assert.deepEqual(JSON.parse(JSON.stringify(app.calls.find(call => call[0] === 'mutate'))), ['mutate', [{ op: 'set', path: ['fetchTimeoutMs'], value: 31000 }], 41, 'dsh-search-fetch'])
+  assert.equal(source.getSnapshot().revision, 42)
+  app.setConfig({ status: 'unavailable' }, 'dsh-search-fetch')
   assert.match(app.render(), /unavailable/)
   app.dispose()
 })
